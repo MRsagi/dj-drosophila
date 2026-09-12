@@ -1,6 +1,10 @@
 /**
  * Low-poly stylized Drosophila DJ on decks — Three.js.
- * Driven by live mixer state (not biology). Funny & readable.
+ *
+ * Locomotion is a *toy* of how labs wire descending neurons into a body:
+ *   NeuroMechFly-style CPG → tripod gait; DNa02-like L/R rates shorten
+ *   ipsilateral stride (Rayshubskiy / MANC DNa02 → leg INs); GF → jump.
+ * These are proxies, not identified MaleCNS motor neurons.
  */
 
 import * as THREE from 'three';
@@ -67,17 +71,21 @@ function buildFly() {
   head.add(eyeL);
   head.add(eyeR);
 
-  // Antennae
+  // Antennae (parented to head — twitch with hi energy)
   const antMat = makeBodyMaterial(0x111111);
+  const antennae = [];
   for (const sx of [-1, 1]) {
     const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.35, 5), antMat);
-    ant.position.set(sx * 0.12, 0.35, 0.55);
+    ant.position.set(sx * 0.12, 0.28, 0.08);
     ant.rotation.z = sx * 0.45;
     ant.rotation.x = -0.5;
-    root.add(ant);
+    ant.userData.restZ = sx * 0.45;
+    ant.userData.restX = -0.5;
+    head.add(ant);
+    antennae.push(ant);
   }
 
-  // Wings
+  // Wings — DNa02 also hits wing/haltere premotor (w-cHIN) in MANC; we flap a readable beat
   const wingGeo = new THREE.PlaneGeometry(0.7, 0.35);
   const wingMat = new THREE.MeshStandardMaterial({
     color: 0xaaddee,
@@ -100,19 +108,39 @@ function buildFly() {
   root.add(wingL);
   root.add(wingR);
 
-  // Legs (simple sticks)
+  // Articulated legs: coxa → femur → tibia. Tripod CPG poses these each frame.
   const legMat = makeBodyMaterial(0x1a140c);
-  const legs = new THREE.Group();
-  for (let i = 0; i < 3; i++) {
-    for (const sx of [-1, 1]) {
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.45, 4), legMat);
-      leg.position.set(sx * (0.25 + i * 0.02), -0.35, 0.15 - i * 0.2);
-      leg.rotation.z = sx * (0.55 + i * 0.08);
-      leg.rotation.x = 0.2 * i;
-      legs.add(leg);
-    }
+  const legsGroup = new THREE.Group();
+  const legs = [];
+  function makeLeg(sx, slot) {
+    const femurLen = 0.2 + slot * 0.015;
+    const tibiaLen = 0.18 + slot * 0.01;
+    const coxa = new THREE.Group();
+    coxa.position.set(sx * (0.22 + slot * 0.015), -0.2, 0.2 - slot * 0.22);
+    const femur = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.016, 0.022, femurLen, 5),
+      legMat,
+    );
+    femur.geometry.translate(0, -femurLen / 2, 0);
+    const knee = new THREE.Group();
+    knee.position.y = -femurLen;
+    const tibia = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.016, tibiaLen, 5),
+      legMat,
+    );
+    tibia.geometry.translate(0, -tibiaLen / 2, 0);
+    knee.add(tibia);
+    femur.add(knee);
+    coxa.add(femur);
+    legsGroup.add(coxa);
+    // Tripod A = L1, R2, L3 (NeuroMechFly CPG default)
+    const tripodA = sx < 0 ? slot !== 1 : slot === 1;
+    return { coxa, femur, knee, tibia, sx, slot, tripodA };
   }
-  root.add(legs);
+  for (let slot = 0; slot < 3; slot++) {
+    legs.push(makeLeg(-1, slot), makeLeg(1, slot));
+  }
+  root.add(legsGroup);
 
   // Tiny headphones (comedy)
   const hpBand = new THREE.Mesh(
@@ -130,7 +158,7 @@ function buildFly() {
   root.add(cupL);
   root.add(cupR);
 
-  return { root, wingL, wingR, eyeL, eyeR, eyeMat, legs, abdomen, thorax, head };
+  return { root, wingL, wingR, eyeL, eyeR, eyeMat, legs, legsGroup, antennae, abdomen, thorax, head };
 }
 
 function buildDecks() {
@@ -290,7 +318,9 @@ export function createFlyDJ(canvas) {
   let bounce = 0;
   let glow = 0;
   let wingPhase = 0;
+  let gaitPhase = 0;
   let lastSkipAt = -10;
+  let lastGfAt = -10;
   let disposed = false;
 
   function resize() {
@@ -304,37 +334,42 @@ export function createFlyDJ(canvas) {
   }
 
   /**
-   * Drive from mixer / set-engine state.
+   * Drive from mixer / set-engine / toy DNs.
    * PLAYING: lean hard left/right (edge). TRANSITION: animate across with xfader.
-   * @param {{ xfader: number, volume: number, bass?: number, kick?: number, skipEvent?: object|null, now?: number, running?: boolean, setState?: string, activeEdge?: number }} state
+   * @param {{ xfader: number, volume: number, bass?: number, mid?: number, hi?: number, kick?: number, skipEvent?: object|null, now?: number, dt?: number, running?: boolean, setState?: string, activeEdge?: number, dnLRate?: number, dnRRate?: number, gfRate?: number, gfFired?: boolean, bpm?: number }} state
    */
   function update(state) {
     if (disposed) return;
     const xf = state.xfader ?? 0;
     const vol = state.volume ?? 0.6;
     const bass = state.bass ?? 0;
+    const mid = state.mid ?? 0;
+    const hi = state.hi ?? 0;
     const kick = state.kick ?? 0;
     const now = state.now ?? performance.now() / 1000;
-    const dt = 1 / 60;
+    const dt = Math.min(0.05, Math.max(0.008, state.dt || 1 / 60));
     const setState = state.setState;
     const edge = state.activeEdge;
+    const dnL = state.dnLRate ?? 0;
+    const dnR = state.dnRRate ?? 0;
+    const running = !!state.running;
 
     // Crossfader / set-engine → body lean
     let leanTarget = xf * 0.55;
     let leanRate = 0.06;
     if (setState === 'PLAYING' || setState === 'INTRO') {
-      // Hard park toward active edge — no mid-blend bobbing
       const e = edge != null ? edge : (xf <= 0 ? -1 : 1);
       leanTarget = e * 0.72;
       leanRate = 0.1;
     } else if (setState === 'TRANSITION') {
       leanTarget = xf * 0.65;
-      leanRate = 0.12; // follow the blend across
+      leanRate = 0.12;
     }
     lean += (leanTarget - lean) * leanRate;
     fly.root.rotation.y = lean * 0.9;
     fly.root.rotation.z = -lean * 0.35;
     fly.root.position.x += (lean * 0.45 - fly.root.position.x) * 0.12;
+    fly.head.rotation.y += (lean * 0.35 - fly.head.rotation.y) * 0.12;
 
     // Master → bounce + glow
     bounce = vol * (0.04 + kick * 0.12);
@@ -342,15 +377,47 @@ export function createFlyDJ(canvas) {
     fly.eyeMat.emissiveIntensity = 0.5 + glow * 1.2;
     spot.intensity = 40 + glow * 50;
     key.intensity = 30 + glow * 25;
+    fly.abdomen.rotation.x = Math.sin(now * (6 + bass * 8)) * (0.08 + bass * 0.12);
 
-    // Bass → wing / leg pulse
-    wingPhase += (0.4 + bass * 8 + kick * 4) * dt * 60;
-    const flap = Math.sin(wingPhase) * (0.25 + bass * 0.5);
+    // Wings: readable hover beat (real flight is ~200 Hz — we don't fake that).
+    // Extra drive from mean DN rate (DNa02 also contacts wing premotor in MANC).
+    const dnMean = 0.5 * (dnL + dnR);
+    const wingHz = running ? 7 + bass * 10 + kick * 8 + Math.min(8, dnMean * 0.15) : 1.2;
+    wingPhase += wingHz * Math.PI * 2 * dt;
+    const amp = (setState === 'TRANSITION' ? 0.55 : 0.28) + bass * 0.45 + kick * 0.35;
+    const flap = Math.sin(wingPhase) * amp;
     fly.wingL.rotation.z = 0.3 + flap;
     fly.wingR.rotation.z = -0.3 - flap;
-    fly.wingL.rotation.x = flap * 0.3;
-    fly.wingR.rotation.x = flap * 0.3;
-    fly.legs.scale.y = 1 + bass * 0.08;
+    fly.wingL.rotation.x = flap * 0.35;
+    fly.wingR.rotation.x = flap * 0.35;
+    fly.wingL.material.opacity = 0.35 + amp * 0.35;
+    fly.wingR.material.opacity = 0.35 + amp * 0.35;
+
+    // Antennae twitch on hi / kick
+    for (const ant of fly.antennae) {
+      ant.rotation.z = ant.userData.restZ + Math.sin(now * 14 + ant.userData.restZ) * (0.08 + hi * 0.25);
+      ant.rotation.x = ant.userData.restX + kick * 0.35;
+    }
+
+    // Tripod CPG. Steer: DNa02-like — more ipsilateral DN shortens that side's stride.
+    const bpm = state.bpm || 120;
+    const walkHz = running ? 2.4 + bass * 4.5 + (bpm / 180) * 1.6 + kick * 1.2 : 0.6;
+    gaitPhase += walkHz * Math.PI * 2 * dt;
+    const steer = Math.tanh((dnR - dnL) / 10);
+    const strideL = 1 - 0.5 * Math.max(0, -steer);
+    const strideR = 1 - 0.5 * Math.max(0, steer);
+    const liftScale = 0.55 + bass * 0.35;
+    for (const leg of fly.legs) {
+      const phase = gaitPhase + (leg.tripodA ? 0 : Math.PI);
+      const swing = Math.sin(phase);
+      const lift = Math.max(0, swing) * liftScale;
+      const strideAmp = (leg.sx < 0 ? strideL : strideR) * (0.42 + mid * 0.2);
+      const stride = Math.cos(phase) * strideAmp;
+      leg.coxa.rotation.x = 0.12 + stride * 0.85 + leg.slot * 0.08;
+      leg.coxa.rotation.z = leg.sx * (0.42 + lift * 0.2);
+      leg.femur.rotation.x = 0.35 - lift * 0.95;
+      leg.knee.rotation.x = 0.55 + lift * 0.45 - stride * 0.15;
+    }
 
     // Skip / GF → jump / escape gag
     if (state.skipEvent && state.skipEvent.at !== lastSkipAt) {
@@ -358,11 +425,15 @@ export function createFlyDJ(canvas) {
       jumpVel = 0.09;
       jumpUntil = now + 0.85;
     }
+    if (state.gfFired && now - lastGfAt > 0.4) {
+      lastGfAt = now;
+      jumpVel = 0.07;
+      jumpUntil = now + 0.55;
+    }
     if (now < jumpUntil) {
       fly.root.position.y += jumpVel;
       jumpVel -= 0.006;
       fly.root.rotation.x = -0.4;
-      // Escape tumble
       fly.root.rotation.z += (state.skipEvent?.to === 'B' ? 0.08 : -0.08);
     } else {
       const targetY = baseY + Math.sin(now * 6) * bounce;

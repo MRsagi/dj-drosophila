@@ -60,9 +60,11 @@ export function createVisualizer(canvas) {
 
   function resize() {
     const rect = canvas.getBoundingClientRect();
+    const cssW = Math.floor(rect.width || canvas.clientWidth || 0);
+    if (cssW < 40) return;
     dpr = Math.min(2, window.devicePixelRatio || 1);
-    const w = Math.max(640, Math.floor(rect.width));
-    const h = Math.max(320, Math.floor(w * 0.42));
+    const w = cssW;
+    const h = Math.max(120, Math.round(w * 0.5));
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
     canvas.style.height = `${h}px`;
@@ -155,6 +157,7 @@ export function createVisualizer(canvas) {
 
   function frame({ left, right, featA, featB, xfader, running }) {
     if (!layout) resize();
+    if (!layout) return;
     const { w, h, cxL, cxR, cy } = layout;
     ctx.clearRect(0, 0, w, h);
 
@@ -190,6 +193,10 @@ export function createVisualizer(canvas) {
 
   resize();
   window.addEventListener('resize', resize);
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => resize());
+    ro.observe(canvas);
+  }
 
   return {
     resize,

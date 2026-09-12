@@ -478,11 +478,12 @@ input[type="range"] { width: 100%; accent-color: var(--gold); }
 .deck-now { margin-top: 0.7rem; }
 .deck-card.compact { padding: 0.5rem 0.55rem; margin-bottom: 0.45rem; }
 .eye-hud { margin-top: 0.75rem; }
+.eye-hud h3 { margin: 0 0 0.35rem; }
 .eye-hud #eyes {
   width: 100%;
   height: auto;
-  max-height: 180px;
-  object-fit: contain;
+  min-height: 140px;
+  display: block;
 }
 
 .attr-footer {
@@ -606,3 +607,35 @@ input[type="range"] { width: 100%; accent-color: var(--gold); }
 .mute-btn .mute-icon { font-size: 14px; line-height: 1; }
 .mute-hint { margin: 0; }
 .gate-mute { margin-top: 0.65rem; }
+
+.booth-fx {
+  margin: 0.65rem 0 0.15rem;
+  padding: 0.55rem 0.55rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0c1018;
+}
+.booth-fx .policy-title { margin: 0 0 0.45rem; display: flex; align-items: baseline; gap: 0.45rem; }
+.booth-fly-tag { color: var(--phosphor); letter-spacing: 0.1em; text-transform: uppercase; }
+.booth-row {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr 5.2rem;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.28rem 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.booth-bar { margin-top: 0; height: 7px; }
+.booth-row b {
+  font-size: 11px;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  text-align: right;
+}
+.booth-fx.looping .booth-fly-tag { color: var(--a); }
+.booth-hint { margin: 0.35rem 0 0; }

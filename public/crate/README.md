@@ -8,14 +8,14 @@ manifest has no file rows.
 
 | File | Title | Artist | Source |
 | --- | --- | --- | --- |
-| `alex-mcculloch-techno-5.mp3` | Techno 5 | Alex McCulloch / Pro Sensory | [Electronic](https://opengameart.org/content/electronic) |
-| `alex-mcculloch-techno-3.mp3` | Techno 3 | Alex McCulloch / Pro Sensory | [Electronic](https://opengameart.org/content/electronic) |
-| `ofdnd-funky-house.mp3` | Funky House | Of Far Different Nature | [Funky House](https://opengameart.org/content/funky-house) |
-| `celestialghost8-nighttime-solitude.mp3` | Nighttime Solitude | celestialghost8 (~110 BPM) | [Nighttime Solitude](https://opengameart.org/content/nighttime-solitude) |
-| `gichco-glowsphere.mp3` | Glowsphere | Gichco / obscure music | [Glowsphere](https://opengameart.org/content/glowsphere) |
-| `gargette-kuia.mp3` | Kuia | James Gargette / cinameng (lo-fi techno) | [Kuia](https://opengameart.org/content/kuia) |
-| `cryothene-console-floor.mp3` | And the Console Hit the Floor | Alex McCulloch / Pro Sensory | [CC0 upbeat collection](https://opengameart.org/content/cc0-upbeat-electronic-music) |
-| `cryothene-alex-bouncy.mp3` | Bouncy Hamster Dancing | cynicmusic | [CC0 upbeat collection](https://opengameart.org/content/cc0-upbeat-electronic-music) |
+| `fupi-technomania101.mp3` | Technomania101 | Fupi | [Technomania101](https://opengameart.org/content/technomania101-2000s-europop-electronic-dance-music) |
+| `mrpoly-techno-geek.mp3` | tEcHNo gEeK | mrpoly | [tEcHNo gEeK](https://opengameart.org/content/techno-geek) |
+| `zane-little-drive.mp3` | Drive | Zane Little Music | [Drive](https://opengameart.org/content/drive-0) |
+| `mintodog-ocean-trance.mp3` | Ocean Trance | MintoDog (140 BPM) | [Ocean Trance](https://opengameart.org/content/ocean-trance) |
+| `deva-takeover.mp3` | Takeover (Abyss) | Deva / Kuesopop | [Takeover](https://opengameart.org/content/kuesopop-takeover-electronic-music) |
+| `vitalezzz-celestial-harmony.mp3` | Celestial Harmony | vitalezzz | [Celestial Harmony](https://opengameart.org/content/celestial-harmony) |
+| `vitalezzz-hyperspace.mp3` | Hyperspace | vitalezzz | [Hyperspace](https://opengameart.org/content/hyperspace) |
+| `iamoneabe-freeflow.mp3` | Freeflow | iamoneabe | [Freeflow](https://opengameart.org/content/freeflow) |
 
 Full license table: repo root [`LICENSES.md`](../../LICENSES.md).
 

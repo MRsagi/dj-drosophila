@@ -1,5 +1,5 @@
 # Always-on shared live radio for Ponytail / Cloudflare Tunnel on sagi-net.
-# Public clients are READ-ONLY (HLS + SSE). Lab UI is OFF by default.
+# Public clients are READ-ONLY (HLS + SSE). #club and #story only.
 services:
   live:
     build: .
@@ -15,12 +15,10 @@ services:
       PORT: "8080"
       HOST: "0.0.0.0"
       SERVE_DIST: "1"
-      ENABLE_LAB: "${ENABLE_LAB:-false}"
       PUBLIC_URL: "${PUBLIC_URL:-https://dj.sagirosenthal.com}"
       SHOW_SEED: "${SHOW_SEED:-dj-drosophila}"
       SHOW_START_MS: "${SHOW_START_MS:-}"
       ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
-      STREAM_ENGINE: "${STREAM_ENGINE:-liquidsoap}"
       ICECAST_HOST: "${ICECAST_HOST:-}"
       ICECAST_PORT: "${ICECAST_PORT:-8000}"
       ICECAST_PASSWORD: "${ICECAST_PASSWORD:-}"

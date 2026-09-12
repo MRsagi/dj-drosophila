@@ -3,7 +3,7 @@
  *
  * Mind decides WHEN to leave and HOW long to crossfade; decisions are appended
  * to an append-only show log so every listener shares the same timeline.
- * getState / upcomingSegments read the log (never “play to EOF then fake blend”).
+ * getState / snapshot read the log (never “play to EOF then fake blend”).
  */
 
 import fs from 'node:fs';
@@ -18,6 +18,7 @@ import {
   MIND_TICK_SEC,
   minPlayForTrack,
 } from './djMind.js';
+import { publicSnapshot, encoderView } from './showClock.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -523,7 +524,12 @@ export function createSchedule(opts = {}) {
     cycle: showLog,
     cycleSec,
     getState,
-    upcomingSegments,
+    snapshot(nowMs) {
+      return publicSnapshot(getState(nowMs));
+    },
+    encoderView(nowMs) {
+      return encoderView(getState(nowMs));
+    },
     fileTracks,
     showLog,
     ensureLogUntil,

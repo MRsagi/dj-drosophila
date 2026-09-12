@@ -13,13 +13,11 @@
  *   PORT              default 8787 (Docker: 8080)
  *   HOST              default 0.0.0.0
  *   SERVE_DIST        default 1
- *   ENABLE_LAB        default false in production / Docker — hides #lab
  *   PUBLIC_URL        public https URL (Cloudflare Tunnel hostname)
  *   SHOW_SEED         rotation seed
  *   SHOW_START_MS     optional fixed show epoch
  *   ADMIN_TOKEN       optional secret for /api/admin/* (X-Admin-Token header only)
  *   MAX_SSE_CLIENTS   max concurrent SSE connections (default 200)
- *   STREAM_ENGINE     liquidsoap | ffmpeg | auto (default auto; Docker: liquidsoap)
  *   ICECAST_HOST      optional Icecast hostname; unset skips Icecast (HLS still runs)
  *   ICECAST_PORT      default 8000
  *   ICECAST_PASSWORD  Icecast source password
@@ -32,8 +30,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createSchedule } from './schedule.js';
-import { createHlsProducer, assertFfmpeg, HLS_DIR } from './ffmpegStream.js';
-import { createLiquidsoapProducer, resolveStreamEngine } from './liquidsoapStream.js';
+import { HLS_DIR } from './hlsDir.js';
+import { createLiquidsoapProducer, resolveStreamEngine, assertLiquidsoap } from './liquidsoapStream.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -43,9 +41,6 @@ const PUBLIC = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 const SERVE_DIST = process.env.SERVE_DIST !== '0';
-const ENABLE_LAB = ['1', 'true', 'yes', 'on'].includes(
-  String(process.env.ENABLE_LAB || 'false').toLowerCase(),
-);
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const MAX_SSE_CLIENTS = Math.max(1, Number(process.env.MAX_SSE_CLIENTS || 200) || 200);
@@ -55,7 +50,6 @@ const IS_PROD = process.env.NODE_ENV === 'production' || SERVE_DIST;
 function publicConfig() {
   return {
     sharedOnly: true,
-    enableLab: ENABLE_LAB,
     publicUrl: PUBLIC_URL || null,
     streamUrl: '/hls/live.m3u8',
     stateUrl: '/api/live/state',
@@ -169,20 +163,18 @@ function tryFile(res, filePath) {
 }
 
 async function main() {
-  await assertFfmpeg();
-
-  const streamEngine = await resolveStreamEngine();
+  await assertLiquidsoap();
+  await resolveStreamEngine();
   const schedule = createSchedule();
-  const producer =
-    streamEngine === 'liquidsoap' ? createLiquidsoapProducer(schedule) : createHlsProducer(schedule);
+  const producer = createLiquidsoapProducer(schedule);
   await producer.start();
-  console.info(`[live] stream engine: ${streamEngine}`);
+  console.info('[live] stream engine: liquidsoap');
 
   /** @type {Set<import('node:http').ServerResponse>} */
   const sseClients = new Set();
 
   const sseTimer = setInterval(() => {
-    const state = schedule.getState();
+    const state = schedule.snapshot();
     const payload = `data: ${JSON.stringify(state)}\n\n`;
     for (const res of sseClients) {
       try {
@@ -252,7 +244,7 @@ async function main() {
         showStart: schedule.showStartMs,
         seed: schedule.seed,
         tracks: schedule.fileTracks.length,
-        state: schedule.getState(),
+        state: schedule.snapshot(),
         sseClients: sseClients.size,
       });
       return;
@@ -276,28 +268,26 @@ async function main() {
           Connection: 'keep-alive',
           'Access-Control-Allow-Origin': '*',
         });
-        res.write(`data: ${JSON.stringify({ ...schedule.getState(), enableLab: ENABLE_LAB, sharedOnly: true, readOnly: true })}\n\n`);
+        res.write(`data: ${JSON.stringify({ ...schedule.snapshot(), sharedOnly: true, readOnly: true })}\n\n`);
         sseClients.add(res);
         req.on('close', () => sseClients.delete(res));
         return;
       }
-      sendJson(res, 200, { ...schedule.getState(), enableLab: ENABLE_LAB, sharedOnly: true, readOnly: true });
+      sendJson(res, 200, { ...schedule.snapshot(), sharedOnly: true, readOnly: true });
       return;
     }
 
     if (pathname === '/api/live/health') {
       sendJson(res, 200, {
         ok: true,
-        streamEngine,
-        ffmpeg: true,
-        liquidsoap: streamEngine === 'liquidsoap',
+        streamEngine: 'liquidsoap',
+        liquidsoap: true,
         hls: producer.ready,
         showStart: schedule.showStartMs,
         seed: schedule.seed,
         tracks: schedule.fileTracks.length,
         clients: sseClients.size,
         maxSseClients: MAX_SSE_CLIENTS,
-        enableLab: ENABLE_LAB,
         publicUrl: PUBLIC_URL || null,
         readOnly: true,
         sharedOnly: true,
@@ -350,16 +340,16 @@ async function main() {
   });
 
   server.listen(PORT, HOST, () => {
-    const st = schedule.getState();
+    const st = schedule.snapshot();
     console.info(`[live] DJ Drosophila shared radio on http://${HOST}:${PORT}`);
     console.info(`[live] showStart=${new Date(schedule.showStartMs).toISOString()} seed=${schedule.seed}`);
     console.info(`[live] tracks=${schedule.fileTracks.length} cycle≈${schedule.cycleSec.toFixed(0)}s`);
     console.info(`[live] now: ${st.statusLine} · ${st.trackA?.title} / ${st.trackB?.title}`);
     console.info(
-      `[live] engine=${streamEngine} · HLS /hls/live.m3u8 · SSE /api/live/state (max ${MAX_SSE_CLIENTS}) · health /api/live/health`,
+      `[live] engine=liquidsoap · HLS /hls/live.m3u8 · SSE /api/live/state (max ${MAX_SSE_CLIENTS}) · health /api/live/health`,
     );
     console.info(`[live] Club UI: http://127.0.0.1:${PORT}/#club`);
-    console.info(`[live] ENABLE_LAB=${ENABLE_LAB} PUBLIC_URL=${PUBLIC_URL || '(unset)'} readOnly=true`);
+    console.info(`[live] PUBLIC_URL=${PUBLIC_URL || '(unset)'} readOnly=true`);
     if (ADMIN_TOKEN) console.info('[live] /api/admin/status available with ADMIN_TOKEN');
   });
 

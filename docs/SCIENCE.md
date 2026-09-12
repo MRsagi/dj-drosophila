@@ -7,6 +7,13 @@ DJ Drosophila is **scientific comedy**. It borrows names and a public dataset cr
 - The **Male CNS connectome** is a finished wiring diagram of an adult male *Drosophila* central nervous system (brain + optic lobes + ventral nerve cord). Data acquired and analyzed by the **FlyEM Project Team at HHMI Janelia**, the **Cambridge Connectomics Group / MRC LMB**, and **Google Research**. Licensed **CC BY**.
 - Public entry points: [Janelia Male CNS](https://www.janelia.org/project-team/flyem/male-cns-connectome), [neuPrint](https://neuprint.janelia.org) dataset **`male-cns:v1.0`**, [male-cns.janelia.org](https://male-cns.janelia.org/download/).
 - **Photoreceptors R1–R8** are real cells in each ommatidium. **R1–R6** are broadband luminance / motion workhorses. **R7** is UV. **R8** comes in color subtypes (pale/yellow). We do not reconstruct opsins or the true lattice.
+- **How the male CNS is actually wired (the bottleneck cartoon):**
+  `eyes → optic lobe (lamina/medulla/lobula) → central brain → descending neurons through the neck connective → VNC`.
+  The VNC (Male Adult Nerve Cord / MaleCNS cord) is already split into motor domains: **leg neuromeres** (T1–T3 walk/turn), **wing / haltere tectulum** (flight vs courtship song), **escape** (Giant Fiber). Labs that “wire a mind to legs and wings” (NeuroMechFly, MANC papers) do **not** dump 130k neurons onto a mixer — they take a handful of **command-like DNs** and map them onto CPGs / motor neurons.
+- **Command-like DNs we name-drop (verify type strings in neuPrint before quoting as MaleCNS IDs):**
+  - **DNa01 / DNa02** — forward walking + steering. Asymmetric DNa02 shortens **ipsilateral** stride (Rayshubskiy et al.). Bilateral activation raises locomotor vigor (Cande et al.). MANC: DNa02 also hits serial leg INs **and** wing-premotor **w-cHIN**.
+  - **Giant Fiber / DNp01** — escape jump / short-mode takeoff.
+  - **pIP10** — descending command for **courtship song**. The VNC song CPG has two nested modes: **pulse song** (repeating syllable) and **sine song** (continuous tone), feeding wing motor neurons (Lillvis / Dickson / Stern).
 - **Descending neurons (DNs)** are a real class that send brain signals into the VNC. **DNa02** appears in the literature as a turning / walking-related DN. That is *not* a statement that our `DN-L` / `DN-R` units *are* DNa02.
 - The **Giant Fiber (GF)** is a real escape-related descending neuron (often aligned with **DNp01** in some datasets). Verify the type string in MaleCNS before quoting it.
 - **T4/T5** are real optic-lobe motion detectors (ON/OFF). They are a `TODO` gag target here, not a wired circuit.
@@ -21,6 +28,16 @@ DJ Drosophila is **scientific comedy**. It borrows names and a public dataset cr
 - **DN-L / DN-R**: *proxies* for DNa02 L/R **or** for left/right eye asymmetry. **Do not claim identity without data.**
 - **Giant Fiber / escape proxy**: fires on audio onsets / coincident kicks, then *proposes* a deck dump. The **owned policy + phrase gate** must co-sign (unless you override). That is a joke about escape, not the jump-and-fly motor program.
 - **Mapping weights** in `src/brain/mapping.js`. None are synaptic counts.
+- **Toy locomotor CPG** (`src/scene/FlyDJ.js`): six articulated legs in a NeuroMechFly-style **tripod gait**. **DN-L / DN-R** rates shorten ipsilateral stride the way **DNa02** is described to steer walking (Rayshubskiy et al.; MANC DNa02 → serial leg INs + w-cHIN). **Wings** beat a *readable* hover (real Drosophila flight is ~200 Hz — we do not fake that). **GF** still proposes a jump. This is a cartoon of “descending neurons drive a body,” not a VNC simulation and not identified motor neurons.
+- **Booth FX driven by the same toys** (`src/brain/fxMapping.js` → `src/audio/boothFx.js`). The fly operates the rack; the HUD only **posts** the selection (no visitor knobs). Local Web Audio only — the shared encoder is untouched.
+
+  | MaleCNS motif (literature) | Our LIF toy | Mixer gag |
+  |---|---|---|
+  | DNa02 L vs R steering | `DN-R − DN-L` | filter HP ↔ LP |
+  | DNa02 both → more walking | mean DN rate | pitch / “BPM vigor” ±~4% |
+  | pIP10 pulse-song CPG | GF fire / TRANSITION kicks | looper (short repeating syllable) |
+  | nested sine-song pathway | TRANSITION progress | echo / smear |
+  | GF escape | `gfFired` | jump + ¼–½ beat stutter |
 - **Owned DJ policy** (`src/policy/*`): user-controlled style presets + heuristics + **unsupervised structure learning from your unlabeled mix stream** + optional supervised/weak fit. Sits **above** LIF mapping:
   `features → policy.decide() → biases/overrides xfader / skip`, then `final = (1−α)·LIF + α·policy`.
 - Style ids `stadium-hype`, `psy-peak`, `bass-blender` are **genre-lane heuristics**, not named after real DJs, not clones of copyrighted sets, not shipped artist weights.

@@ -11,14 +11,14 @@ active crate lines from `src/crate/manifest.json`.
 
 | File | Title | Artist | License | Source |
 | --- | --- | --- | --- | --- |
-| `alex-mcculloch-techno-5.mp3` | Techno 5 | Alex McCulloch / Pro Sensory | CC0 | https://opengameart.org/content/electronic |
-| `alex-mcculloch-techno-3.mp3` | Techno 3 | Alex McCulloch / Pro Sensory | CC0 | https://opengameart.org/content/electronic |
-| `ofdnd-funky-house.mp3` | Funky House | Of Far Different Nature | CC0 | https://opengameart.org/content/funky-house |
-| `celestialghost8-nighttime-solitude.mp3` | Nighttime Solitude | celestialghost8 | CC0 | https://opengameart.org/content/nighttime-solitude |
-| `gichco-glowsphere.mp3` | Glowsphere | Gichco / obscure music | CC0 | https://opengameart.org/content/glowsphere |
-| `gargette-kuia.mp3` | Kuia | James Gargette / cinameng | CC0 | https://opengameart.org/content/kuia |
-| `cryothene-console-floor.mp3` | And the Console Hit the Floor | Alex McCulloch / Pro Sensory | CC0 | https://opengameart.org/content/cc0-upbeat-electronic-music (also https://opengameart.org/content/and-the-console-hit-the-floor-electronic) |
-| `cryothene-alex-bouncy.mp3` | Bouncy Hamster Dancing | cynicmusic | CC0 | https://opengameart.org/content/cc0-upbeat-electronic-music (also https://opengameart.org/content/bouncy-hamster-dancing-menu-music) |
+| `fupi-technomania101.mp3` | Technomania101 | Fupi | CC0 | https://opengameart.org/content/technomania101-2000s-europop-electronic-dance-music |
+| `mrpoly-techno-geek.mp3` | tEcHNo gEeK | mrpoly | CC0 | https://opengameart.org/content/techno-geek |
+| `zane-little-drive.mp3` | Drive | Zane Little Music | CC0 | https://opengameart.org/content/drive-0 |
+| `mintodog-ocean-trance.mp3` | Ocean Trance | MintoDog | CC0 | https://opengameart.org/content/ocean-trance |
+| `deva-takeover.mp3` | Takeover (Abyss) | Deva / Kuesopop | CC0 | https://opengameart.org/content/kuesopop-takeover-electronic-music |
+| `vitalezzz-celestial-harmony.mp3` | Celestial Harmony | vitalezzz | CC0 | https://opengameart.org/content/celestial-harmony |
+| `vitalezzz-hyperspace.mp3` | Hyperspace | vitalezzz | CC0 | https://opengameart.org/content/hyperspace |
+| `iamoneabe-freeflow.mp3` | Freeflow | iamoneabe | CC0 | https://opengameart.org/content/freeflow |
 
 ## Procedural beds (fallback)
 

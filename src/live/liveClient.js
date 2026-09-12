@@ -4,6 +4,8 @@
  */
 
 import Hls from 'hls.js';
+import { createAnalyser } from '../audio/analyser.js';
+import { createBoothFx } from '../audio/boothFx.js';
 
 const LIVE_MUTE_KEY = 'dj-drosophila:liveMuted';
 
@@ -53,6 +55,9 @@ export function createLiveClient(opts = {}) {
   let hls = null;
   let started = false;
   let muted = false;
+  /** @type {{ ac: AudioContext, analyser: ReturnType<typeof createAnalyser>, gain: GainNode, booth: ReturnType<typeof createBoothFx> }|null} */
+  let tap = null;
+  let pitch = 1;
   try {
     muted = localStorage.getItem(LIVE_MUTE_KEY) === '1';
   } catch {
@@ -64,7 +69,37 @@ export function createLiveClient(opts = {}) {
 
   function applyMuteToEl(el) {
     if (!el) return;
-    el.muted = muted;
+    // When the Web Audio tap owns output, keep the element unmuted so the
+    // analyser still sees the stream; mute via gain instead.
+    el.muted = tap ? false : muted;
+    if (tap) tap.gain.gain.value = muted ? 0 : 1;
+  }
+
+  function ensureTap() {
+    if (tap) return tap;
+    const el = ensureAudio();
+    const ac = new AudioContext();
+    const src = ac.createMediaElementSource(el);
+    const analyser = createAnalyser(ac, { fftSize: 2048, smoothing: 0.5 });
+    const booth = createBoothFx(ac);
+    const gain = ac.createGain();
+    // Tap FFT dry (eyes); booth hears the same source, mute is post-FX.
+    src.connect(analyser.node);
+    src.connect(booth.input);
+    booth.output.connect(gain);
+    gain.connect(ac.destination);
+    gain.gain.value = muted ? 0 : 1;
+    tap = { ac, analyser, gain, booth };
+    el.muted = false;
+    applyPitch();
+    return tap;
+  }
+
+  function applyPitch() {
+    if (!audio) return;
+    audio.playbackRate = pitch;
+    audio.preservesPitch = false;
+    audio.webkitPreservesPitch = false;
   }
 
   function ensureAudio() {
@@ -78,7 +113,10 @@ export function createLiveClient(opts = {}) {
     audio.playsInline = true;
     audio.preload = 'auto';
     audio.style.display = 'none';
+    audio.preservesPitch = false;
+    audio.webkitPreservesPitch = false;
     applyMuteToEl(audio);
+    applyPitch();
     document.body.appendChild(audio);
     return audio;
   }
@@ -182,6 +220,13 @@ export function createLiveClient(opts = {}) {
       }
       attachHls(url);
       const el = ensureAudio();
+      try {
+        ensureTap();
+        if (tap.ac.state === 'suspended') await tap.ac.resume();
+      } catch (err) {
+        console.warn('[live] audio tap failed — eyes will stay dark', err);
+        tap = null;
+      }
       applyMuteToEl(el);
       try {
         await el.play();
@@ -245,22 +290,42 @@ export function createLiveClient(opts = {}) {
         activeSide: s.activeDeck,
         quietSide: s.quietDeck,
         activeEdge: s.activeDeck === 'A' ? -1 : 1,
-        // Follow server xfaderEdge during TRANSITION (0→1 blend); parked ±1 while PLAYING
         xfaderTarget: xf,
         xfader: xf,
+        xfaderEdge: xf,
         lockXfader: s.state === 'PLAYING',
         playedSec: s.playedSec,
         plannedSec: s.plannedSec,
         transitionProgress: s.transitionProgress,
         transitionDurSec: s.transitionSec,
         nextTitle: s.nextTrack?.title || null,
-        fxIntensity: s.state === 'TRANSITION' ? 0.55 : 0.28,
         statusLine: s.statusLine,
         timeStr: s.timeStr,
         edgeLabel: s.edgeLabel,
         mindReason: s.mindReason || null,
-        canTransition: true,
       };
+    },
+    /**
+     * FFT features from the shared HLS element, or null if tap is unavailable.
+     */
+    readFeat() {
+      if (!tap) return null;
+      return tap.analyser.read(tap.ac.currentTime);
+    },
+    get booth() {
+      return tap?.booth || null;
+    },
+    get pitch() {
+      return pitch;
+    },
+    /**
+     * Vinyl-style pitch on the local HLS element only (±8%).
+     * @param {number} rate
+     */
+    setPitch(rate) {
+      pitch = Math.max(0.92, Math.min(1.08, Number(rate) || 1));
+      applyPitch();
+      return pitch;
     },
   };
 }

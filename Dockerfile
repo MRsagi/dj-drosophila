@@ -19,14 +19,11 @@ RUN mkdir -p /app/server/hls /app/server/cache \
   && printf '#EXTM3U\n' > /app/server/cache/radio.m3u \
   && liquidsoap -c /app/server/radio.liq
 
-# Public production defaults: shared live only, no lab
 ENV NODE_ENV=production \
     PORT=8080 \
     HOST=0.0.0.0 \
     SERVE_DIST=1 \
-    ENABLE_LAB=false \
-    SHOW_SEED=dj-drosophila \
-    STREAM_ENGINE=liquidsoap
+    SHOW_SEED=dj-drosophila
 
 EXPOSE 8080
 

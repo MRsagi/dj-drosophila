@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HLS_DIR } from './ffmpegStream.js';
+import { HLS_DIR } from './hlsDir.js';
 import {
   RADIO_M3U_PATH,
   buildRadioM3u,
@@ -48,7 +48,7 @@ export function assertLiquidsoap() {
   return binaryOnPath('liquidsoap', ['--version']).then((ok) => {
     if (!ok) {
       throw new Error(
-        'liquidsoap not found on PATH — install liquidsoap, or run via Docker (STREAM_ENGINE=liquidsoap)',
+        'liquidsoap not found on PATH — install liquidsoap, or run via Docker',
       );
     }
     return true;
@@ -56,44 +56,15 @@ export function assertLiquidsoap() {
 }
 
 /**
- * Resolve STREAM_ENGINE: liquidsoap (default when present / in Docker),
- * else ffmpeg fallback with a clear notice.
+ * Liquidsoap is the only encoder. Missing binary fails closed.
  * @returns {Promise<'liquidsoap'|'ffmpeg'>}
  */
 export async function resolveStreamEngine() {
-  const raw = String(process.env.STREAM_ENGINE || 'auto').toLowerCase().trim();
   const hasLiq = await binaryOnPath('liquidsoap', ['--version']);
-  const hasFf = await binaryOnPath('ffmpeg', ['-version']);
-
-  const fallbackNotice = () => {
-    console.warn('[live] liquidsoap is not on PATH.');
-    console.warn('[live] For production 24/7 radio: docker compose up  (STREAM_ENGINE=liquidsoap)');
-    console.warn('[live] Or install locally: apt-get install liquidsoap   (Debian/Ubuntu)');
-  };
-
-  if (raw === 'ffmpeg') {
-    if (!hasFf) throw new Error('STREAM_ENGINE=ffmpeg but ffmpeg is not on PATH');
-    return 'ffmpeg';
-  }
-
-  if (raw === 'liquidsoap') {
-    if (hasLiq) return 'liquidsoap';
-    console.warn('[live] STREAM_ENGINE=liquidsoap but the liquidsoap binary was not found.');
-    fallbackNotice();
-    if (hasFf) {
-      console.warn('[live] Falling back to the ffmpeg HLS producer.');
-      return 'ffmpeg';
-    }
-    throw new Error('liquidsoap not found and ffmpeg fallback is unavailable');
-  }
-
   if (hasLiq) return 'liquidsoap';
-  if (hasFf) {
-    fallbackNotice();
-    console.warn('[live] Using ffmpeg HLS producer (dev fallback).');
-    return 'ffmpeg';
-  }
-  throw new Error('Neither liquidsoap nor ffmpeg found on PATH');
+  throw new Error(
+    'liquidsoap not found on PATH. Install liquidsoap or run: docker compose up. There is no ffmpeg HLS producer.',
+  );
 }
 
 function ensureDir(d) {
@@ -122,9 +93,9 @@ function tracksById(schedule) {
 }
 
 function tooCloseToTransition(schedule) {
-  const st = schedule.getState();
+  const st = schedule.encoderView();
   if (st.state === 'TRANSITION') return true;
-  if (typeof st._remainingPlay === 'number' && st._remainingPlay < RELOAD_GUARD_SEC) return true;
+  if (typeof st.remainingPlay === 'number' && st.remainingPlay < RELOAD_GUARD_SEC) return true;
   return false;
 }
 

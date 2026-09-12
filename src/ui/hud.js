@@ -189,7 +189,7 @@ export function createHud() {
       now,
       lastSkipAt,
       lastSkipFrom,
-      facets,
+      facets: _facets,
       policyReason,
       policyAlpha,
       styleId,
@@ -217,11 +217,12 @@ export function createHud() {
       let status;
       if (!running) {
         status = 'Eyes dark. Circuit gated. Enter the club.';
-      } else if (setStatus) {
-        const next = nextTitle ? ` · next: ${nextTitle}` : '';
-        status = `${setStatus}${next} · ${facets?.left ?? 0}+${facets?.right ?? 0} facets`;
+      } else if (policyReason) {
+        status = policyReason;
+      } else if (sharedLive) {
+        status = 'Shared live — the fly’s set.';
       } else {
-        status = `Live mix · ${side} · ${facets?.left ?? 0}+${facets?.right ?? 0} facets (not 1771 · TODO)`;
+        status = `Live mix · ${side}`;
       }
       setText(els.club, status);
 
@@ -323,7 +324,11 @@ export function createHud() {
       setText(els.mean, `${fmt(meanRate)} Hz`);
 
       setText(els.reason, policyReason || '—');
-      setText(els.clubReason, policyReason || '—');
+      if (els.clubReason) {
+        // Club lede already shows the mind reason — this line is the motor readout.
+        const loc = `DN-L ${fmt(dnL?.rate ?? 0)} Hz · DN-R ${fmt(dnR?.rate ?? 0)} Hz · GF ${fmt(gf?.rate ?? 0)} Hz · toy CPG`;
+        setText(els.clubReason, loc);
+      }
       if (els.bpmRead && bpm != null) els.bpmRead.textContent = `${fmt(bpm, 0)} BPM`;
       if (els.gateRead) {
         els.gateRead.textContent = gateAllow ? 'phrase gate OPEN' : 'phrase gate shut';

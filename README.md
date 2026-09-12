@@ -4,7 +4,7 @@
 
 Song visualizer → fly eyes → leaky-integrate-and-fire stub → **policy.decide()** → mixer + **3D fly DJ** → live Web Audio.
 
-**Public site:** hash routes `#club` / `#story` / `#lab`, CC/procedural crate (Spotify out), bundled unsupervised model auto-loads.
+**Public site:** hash routes `#club` / `#story`, CC0 crate (Spotify out). Shared Liquidsoap radio.
 
 The fly does **not** understand music. The fly is **not** conscious. The fly was **not** uploaded. The fly does **not** learn. Labels that look like neuron names are **proxies** unless you check them in neuPrint yourself. Style presets are **genre-lane heuristics**, not clones of any artist.
 
@@ -14,14 +14,14 @@ Credit: MaleCNS data from **FlyEM / HHMI Janelia**, the **Cambridge Connectomics
 ## Shared 24/7 live radio
 
 Public deploy is an **always-on shared HLS stream** (everyone hears the same music).  
-See **[docs/LIVE.md](docs/LIVE.md)** for Docker, Cloudflare Tunnel, `ENABLE_LAB=false`, Liquidsoap, and the ffmpeg fallback.
+See **[docs/LIVE.md](docs/LIVE.md)** for Docker, Cloudflare Tunnel, and Liquidsoap.
 
 ```bash
 npm run live:build          # local shared radio
 docker compose up -d --build
 ```
 
-`#lab` is local-dev only and **cannot** control or override the live radio for other visitors.
+There is no `#lab` mix. Visitors cannot control the radio.
 
 ## Run
 
