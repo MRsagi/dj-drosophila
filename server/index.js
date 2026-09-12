@@ -17,12 +17,14 @@
  *   PUBLIC_URL        public https URL (Cloudflare Tunnel hostname)
  *   SHOW_SEED         rotation seed
  *   SHOW_START_MS     optional fixed show epoch
- *   ADMIN_TOKEN       optional secret for /api/admin/*
+ *   ADMIN_TOKEN       optional secret for /api/admin/* (X-Admin-Token header only)
+ *   MAX_SSE_CLIENTS   max concurrent SSE connections (default 200)
  */
 
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createSchedule } from './schedule.js';
 import { createHlsProducer, assertFfmpeg, HLS_DIR } from './ffmpegStream.js';
@@ -40,6 +42,8 @@ const ENABLE_LAB = ['1', 'true', 'yes', 'on'].includes(
 );
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
+const MAX_SSE_CLIENTS = Math.max(1, Number(process.env.MAX_SSE_CLIENTS || 200) || 200);
+const SSE_HEARTBEAT_MS = 15_000;
 const IS_PROD = process.env.NODE_ENV === 'production' || SERVE_DIST;
 
 function publicConfig() {
@@ -54,18 +58,32 @@ function publicConfig() {
   };
 }
 
+function adminTokensEqual(provided, expected) {
+  if (typeof provided !== 'string' || typeof expected !== 'string') return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  // timingSafeEqual throws on length mismatch — reject safely first
+  if (a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
 function requireAdmin(req, res) {
   if (!ADMIN_TOKEN) {
     sendJson(res, 404, { error: 'admin API disabled' });
     return false;
   }
-  const hdr = req.headers['x-admin-token'] || '';
-  const auth = req.headers.authorization || '';
-  const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  const q = new URL(req.url || '/', 'http://local').searchParams.get('token') || '';
-  if (hdr === ADMIN_TOKEN || bearer === ADMIN_TOKEN || q === ADMIN_TOKEN) return true;
-  sendJson(res, 401, { error: 'unauthorized' });
-  return false;
+  // Header only — never accept ?token= from the query string (leaks via logs/Referer).
+  const hdr = req.headers['x-admin-token'];
+  const provided = Array.isArray(hdr) ? hdr[0] : hdr;
+  if (!adminTokensEqual(provided || '', ADMIN_TOKEN)) {
+    sendJson(res, 401, { error: 'unauthorized' });
+    return false;
+  }
+  return true;
 }
 
 const MIME = {
@@ -105,10 +123,21 @@ function sendJson(res, status, obj) {
 }
 
 function safeJoin(root, reqPath) {
-  const decoded = decodeURIComponent(reqPath.split('?')[0]);
-  const cleaned = path.normalize(decoded).replace(/^(\.\.[/\\])+/, '');
-  const full = path.join(root, cleaned);
-  if (!full.startsWith(root)) return null;
+  let decoded;
+  try {
+    decoded = decodeURIComponent(String(reqPath || '').split('?')[0]);
+  } catch {
+    return null;
+  }
+  if (decoded.includes('\0')) return null;
+  // Relative under root only (strip leading separators; do not strip "..").
+  const cleaned = path.normalize(decoded).replace(/^([/\\])+/, '');
+  if (!cleaned || cleaned === '.') return null;
+
+  const rootResolved = path.resolve(root);
+  const full = path.resolve(rootResolved, cleaned);
+  // path.sep prefix check: /root must not match /root-evil/...
+  if (full !== rootResolved && !full.startsWith(rootResolved + path.sep)) return null;
   return full;
 }
 
@@ -155,6 +184,17 @@ async function main() {
     }
   }, 500);
 
+  // Keep-alive comments so proxies/browsers do not idle-drop SSE sockets.
+  const sseHeartbeat = setInterval(() => {
+    for (const res of sseClients) {
+      try {
+        res.write(': heartbeat\n\n');
+      } catch {
+        sseClients.delete(res);
+      }
+    }
+  }, SSE_HEARTBEAT_MS);
+
   const server = http.createServer((req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
@@ -163,7 +203,7 @@ async function main() {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
       });
       res.end();
       return;
@@ -212,7 +252,15 @@ async function main() {
     // --- Live API (read-only) ---
     if (pathname === '/api/live/state') {
       if (req.headers.accept && req.headers.accept.includes('text/event-stream')) {
-        // SSE
+        // SSE — cap concurrent clients to limit DoS / FD exhaustion
+        if (sseClients.size >= MAX_SSE_CLIENTS) {
+          sendJson(res, 503, {
+            error: 'sse capacity full',
+            max: MAX_SSE_CLIENTS,
+            message: 'Too many live HUD listeners; retry later or use JSON polling.',
+          });
+          return;
+        }
         res.writeHead(200, {
           'Content-Type': 'text/event-stream; charset=utf-8',
           'Cache-Control': 'no-store',
@@ -237,6 +285,7 @@ async function main() {
         seed: schedule.seed,
         tracks: schedule.fileTracks.length,
         clients: sseClients.size,
+        maxSseClients: MAX_SSE_CLIENTS,
         enableLab: ENABLE_LAB,
         publicUrl: PUBLIC_URL || null,
         readOnly: true,
@@ -294,7 +343,7 @@ async function main() {
     console.info(`[live] showStart=${new Date(schedule.showStartMs).toISOString()} seed=${schedule.seed}`);
     console.info(`[live] tracks=${schedule.fileTracks.length} cycle≈${schedule.cycleSec.toFixed(0)}s`);
     console.info(`[live] now: ${st.statusLine} · ${st.trackA?.title} / ${st.trackB?.title}`);
-    console.info(`[live] HLS /hls/live.m3u8 · SSE /api/live/state · health /api/live/health`);
+    console.info(`[live] HLS /hls/live.m3u8 · SSE /api/live/state (max ${MAX_SSE_CLIENTS}) · health /api/live/health`);
     console.info(`[live] Club UI: http://127.0.0.1:${PORT}/#club`);
     console.info(`[live] ENABLE_LAB=${ENABLE_LAB} PUBLIC_URL=${PUBLIC_URL || '(unset)'} readOnly=true`);
     if (ADMIN_TOKEN) console.info('[live] /api/admin/status available with ADMIN_TOKEN');
@@ -303,6 +352,7 @@ async function main() {
   function shutdown() {
     console.info('[live] shutting down…');
     clearInterval(sseTimer);
+    clearInterval(sseHeartbeat);
     producer.stop();
     for (const res of sseClients) {
       try {

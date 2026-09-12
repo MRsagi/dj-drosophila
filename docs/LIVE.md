@@ -23,6 +23,13 @@ Clients are **read-only**: there is no public API to skip, cue, or override the 
 
 Any `POST /api/control`, `/api/skip`, etc. returns **403**.  
 Optional `GET /api/admin/status` requires header `X-Admin-Token: $ADMIN_TOKEN` (not exposed in the UI).
+Query-string tokens are **rejected**; comparison uses `crypto.timingSafeEqual`.
+
+### SSE limits (DoS guard)
+
+- Max concurrent SSE clients: **`MAX_SSE_CLIENTS`** (default **200**). When full, new `Accept: text/event-stream` requests get **503** (JSON polling still works).
+- State events ~every 500ms; **heartbeat** comment every 15s to keep proxies from idle-dropping connections.
+- Static/HLS paths use a hardened `safeJoin` (`path.resolve` + `path.sep` prefix check) to block traversal.
 
 ## Requirements
 
@@ -109,7 +116,8 @@ Keep a single always-on instance — shared live needs one continuous encoder + 
 | `ENABLE_LAB` | `false` | Must stay false on public deploy |
 | `SHOW_SEED` | `dj-drosophila` | Deterministic track rotation |
 | `SHOW_START_MS` | boot time | Optional fixed show epoch (ms) |
-| `ADMIN_TOKEN` | empty | Enables `/api/admin/status` only |
+| `ADMIN_TOKEN` | empty | Enables `/api/admin/status` only (`X-Admin-Token` header) |
+| `MAX_SSE_CLIENTS` | `200` | Cap concurrent SSE HUD listeners (503 when full) |
 | `SERVE_DIST` | `1` | Serve Vite `dist/` |
 
 ## ffmpeg assumptions
