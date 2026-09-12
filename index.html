@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DJ Drosophila — MaleCNS mixer (approx)</title>
+    <meta
+      name="description"
+      content="Scientific comedy: MaleCNS fruit-fly connectome wiring approximations drive a DJ mixer. The fly does not understand music, is not conscious, and was not uploaded. Always-on CC/procedural club + 3D fly DJ."
+    />
+    <meta name="theme-color" content="#07080b" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body data-route="club">
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">◉</span>
+          <div>
+            <h1>DJ Drosophila</h1>
+            <p class="tag">
+              A wiring diagram walks into a club. The wiring diagram does not understand the joke.
+            </p>
+          </div>
+        </div>
+        <nav class="main-nav" aria-label="Primary">
+          <a href="#club" data-nav="club">Club</a>
+          <a href="#story" data-nav="story">Story</a>
+          <a href="#lab" data-nav="lab" data-lab-only>Lab</a>
+        </nav>
+        <div class="top-meta">
+          <span class="pill">dataset <strong>male-cns:v1.0</strong></span>
+          <span class="pill dim">CC BY · FlyEM / Janelia / Cambridge / Google Research</span>
+          <span class="fps" id="fps">-- FPS</span>
+        </div>
+      </header>
+
+      <!-- ========== PUBLIC CLUB ========== -->
+      <section class="view view-club" data-route-view="club" id="view-club">
+        <div class="club-hero">
+          <div class="club-hero-copy">
+            <p class="kicker">24/7 shared live · CC crate · not Spotify</p>
+            <h2 class="hero-line">MaleCNS actuators meet unsupervised policy. Consciousness not included.</h2>
+            <p class="hero-sub">
+              Dual-eye viz · mixer HUD · always-on CC0 crate. With the live server, every visitor hears the
+              <strong>same</strong> shared live stream. Private <code>#lab</code> is for local dev only (off in production).
+            </p>
+          </div>
+          <div class="club-live-pill" id="club-live-pill">circuit gated</div>
+        </div>
+
+        <div class="club-layout">
+          <div class="fly-stage">
+            <canvas id="fly-dj" width="960" height="540" aria-label="3D fruit fly DJ on decks"></canvas>
+            <div class="fly-caption">Low-poly Drosophila · lean = crossfader · bounce = master · jump = GF skip</div>
+          </div>
+
+          <aside class="club-hud panel">
+            <h2>Mixer HUD</h2>
+            <p class="lede" id="club-status">Eyes dark. Circuit gated. Enter the club.</p>
+            <p class="tiny set-line" id="set-status">set engine idle</p>
+            <p class="tiny set-next" id="set-next">Next: —</p>
+            <div class="meters club-meters">
+              <div class="meter">
+                <span>Crossfader</span>
+                <div class="bar"><i id="xf-bar"></i></div>
+                <b id="xf-read">A · · B</b>
+              </div>
+              <div class="meter">
+                <span>Master</span>
+                <div class="bar"><i id="vol-bar"></i></div>
+                <b id="vol-read">—</b>
+              </div>
+              <div class="meter">
+                <span>Skip</span>
+                <b id="skip-read">GF idle</b>
+              </div>
+            </div>
+            <div class="deck-now">
+              <div class="deck-card a compact">
+                <header><span class="deck-id">A</span><span class="deck-name" id="name-a">—</span></header>
+                <p class="tiny" id="info-a">crate loading…</p>
+              </div>
+              <div class="deck-card b compact">
+                <header><span class="deck-id">B</span><span class="deck-name" id="name-b">—</span></header>
+                <p class="tiny" id="info-b">crate loading…</p>
+              </div>
+            </div>
+            <div class="eye-hud">
+              <h3 class="policy-title">Dual-eye viz</h3>
+              <canvas id="eyes" width="640" height="220" aria-label="Dual compound-eye song visualizer"></canvas>
+            </div>
+            <p class="tiny" id="club-policy-reason">—</p>
+          </aside>
+        </div>
+
+        <footer class="attr-footer" id="attr-footer">
+          <strong>Music attribution</strong>
+          <p id="attr-lines">CC0 OpenGameArt crate · see LICENSES.md</p>
+        </footer>
+      </section>
+
+      <!-- ========== STORY ========== -->
+      <section class="view view-story" data-route-view="story" id="view-story" hidden>
+        <article class="story-card">
+          <p class="kicker">how training works · honest edition</p>
+          <h2>The fly did not go to DJ school</h2>
+          <p class="lede story-lede">
+            This is scientific comedy. MaleCNS is a <em>wiring diagram</em> (CC BY). We use a few
+            named <strong>actuator proxies</strong> and a separate <strong>unsupervised policy</strong>
+            trained on <em>your</em> mix feature stream — not a conscious animal, not an upload,
+            not plasticity in the connectome.
+          </p>
+
+          <div class="story-gags">
+            <div class="gag">
+              <h3>Gag</h3>
+              <p>“Closed-loop DJ policy on MaleCNS v1.0.”</p>
+            </div>
+            <div class="gag truth">
+              <h3>Truth</h3>
+              <p>
+                Three LIF toys + a canvas. GF <em>proposes</em> a skip; the owned policy + phrase gate
+                must co-sign. Unsupervised k-means / novelty lives in <code>localStorage</code>, not in a fly.
+              </p>
+            </div>
+          </div>
+
+          <h3>What actually runs</h3>
+          <ol class="story-steps">
+            <li><strong>Sensors</strong> — song visualizer → approx R1–R6 / R8 eye columns (not ommatidia census).</li>
+            <li><strong>Actuators (MaleCNS-named proxies)</strong> — DN-L / DN-R / Giant Fiber LIF stubs drive xfader lean, master, and skip <em>proposals</em>. Proxies ≠ identified cells unless you verify in neuPrint.</li>
+            <li><strong>Unsupervised policy</strong> — feature streams → clusters, novelty, A/B energy map, self-labeled skips. No human “DJ school” labels required. Bundled pretrained model auto-loads.</li>
+            <li><strong>Blend</strong> — <code>final xfader = (1−α)·LIF + α·policy</code>.</li>
+            <li><strong>Crate</strong> — CC0 OpenGameArt mp3s in <code>public/crate/</code> (club prefers files); procedural beds as fallback. Spotify is out.</li>
+          </ol>
+
+          <h3>Science fine print</h3>
+          <ul class="fine-list">
+            <li><strong>No consciousness.</strong> A LIF stub is not a mind.</li>
+            <li><strong>No upload.</strong> We did not instantiate ~166k neurons.</li>
+            <li><strong>No “the fly learned to DJ.”</strong> Training updates your policy artifacts, not the connectome.</li>
+            <li><strong>No artist cloning.</strong> Style lanes are genre heuristics.</li>
+            <li><strong>Do not cut flies for a nightclub.</strong> This is software.</li>
+          </ul>
+
+          <h3>Credits</h3>
+          <ul class="credits">
+            <li>
+              <strong>MaleCNS</strong> — FlyEM / HHMI Janelia, Cambridge Connectomics Group / MRC LMB,
+              Google Research · <strong>CC BY</strong> · dataset <code>male-cns:v1.0</code> ·
+              <a href="https://neuprint.janelia.org" rel="noopener" target="_blank">neuprint.janelia.org</a>
+            </li>
+            <li>
+              <strong>Music</strong> — CC0 tracks from OpenGameArt (Alex McCulloch / Pro Sensory,
+              Of Far Different Nature, celestialghost8, Gichco, James Gargette / cinameng, cynicmusic)
+              in <code>public/crate/</code>; see <code>LICENSES.md</code>. Procedural beds remain as fallback.
+              Attribution footer always visible on the Club page.
+            </li>
+            <li>
+              <strong>This toy</strong> — demo code in this repo. Keep the credit line if you show it.
+            </li>
+          </ul>
+
+          <p class="tiny">
+            Deeper notes: <a href="/docs/SCIENCE.md">docs/SCIENCE.md</a> (in repo) ·
+            <a href="#lab" data-lab-only>open the lab</a> for hands-on controls ·
+            <a href="#club">back to the club</a>.
+          </p>
+        </article>
+      </section>
+
+      <!-- ========== LAB (existing controls) ========== -->
+      <main class="stage view view-lab" data-route-view="lab" id="view-lab" data-lab-only hidden>
+        <aside class="panel hands" id="panel-hands">
+          <h2>Hands on deck</h2>
+          <p class="lede">
+            Lab mode. You can still load files. Public Club uses the CC/procedural crate.
+            Override if you must — the fly will not mind, because the fly is not present.
+          </p>
+
+          <div class="deck-card a">
+            <header>
+              <span class="deck-id">A</span>
+              <span class="deck-name" id="name-a-lab">Demo / crate</span>
+            </header>
+            <label class="file">
+              <input id="file-a" type="file" accept="audio/*" />
+              <span>Load track A</span>
+            </label>
+            <p class="tiny" id="info-a-lab">lab file override</p>
+          </div>
+
+          <div class="deck-card b">
+            <header>
+              <span class="deck-id">B</span>
+              <span class="deck-name" id="name-b-lab">Demo / crate</span>
+            </header>
+            <label class="file">
+              <input id="file-b" type="file" accept="audio/*" />
+              <span>Load track B</span>
+            </label>
+            <p class="tiny" id="info-b-lab">lab file override</p>
+          </div>
+
+          <div class="transport">
+            <button type="button" id="btn-start" class="primary">Start mix</button>
+            <button type="button" id="btn-stop">Stop</button>
+            <button type="button" id="btn-demo">Reset crate / demo</button>
+          </div>
+
+          <label class="toggle">
+            <input type="checkbox" id="override" />
+            <span>Hands on the faders (manual override)</span>
+          </label>
+
+          <div class="manual" id="manual-box">
+            <label>
+              Crossfader
+              <input id="manual-xf" type="range" min="-1" max="1" step="0.01" value="0" />
+            </label>
+            <label>
+              Master
+              <input id="manual-vol" type="range" min="0" max="1" step="0.01" value="0.7" />
+            </label>
+            <button type="button" id="btn-skip">Force skip (human GF)</button>
+          </div>
+
+          <div class="policy-box" id="policy-box">
+            <h3 class="policy-title">Owned DJ policy</h3>
+            <p class="tiny policy-disclaimer">
+              Heuristic + unsupervised (your stream) + optional supervised fit.
+              Not MaleCNS learning. Not an imitation of any specific artist.
+            </p>
+            <label class="policy-field">
+              Style lane
+              <select id="policy-style"></select>
+            </label>
+            <p class="tiny" id="policy-blurb">—</p>
+            <label class="policy-field">
+              Policy α <span id="policy-alpha-read">0.55</span>
+              <input id="policy-alpha" type="range" min="0" max="1" step="0.01" value="0.55" />
+            </label>
+            <p class="tiny">final xfader = (1−α)·LIF + α·policy</p>
+            <div class="policy-meta">
+              <span id="policy-bpm">— BPM</span>
+              <span id="policy-gate">phrase gate —</span>
+              <span id="policy-log-count">0 logged</span>
+            </div>
+            <p class="policy-reason" id="policy-reason">—</p>
+            <div class="policy-actions">
+              <button type="button" id="btn-train-unsup" class="primary">Train unsupervised</button>
+              <button type="button" id="btn-export-log">Export session log</button>
+              <button type="button" id="btn-fit-policy">Fit supervised (secondary)</button>
+            </div>
+            <label class="toggle policy-auto">
+              <input type="checkbox" id="auto-refit-unsup" />
+              <span>Auto-refit unsupervised every ~200 samples</span>
+            </label>
+            <p class="tiny unsup-caption">
+              Unsupervised = structure from your mix stream, not human labels, not MaleCNS plasticity.
+            </p>
+            <p class="tiny" id="policy-unsup-status">Unsupervised: seeding…</p>
+            <p class="tiny" id="policy-weights-status">Supervised weights: heuristics only (optional secondary fit)</p>
+            <p class="tiny" id="policy-train-status">Prefer Train unsupervised — no human skip labels required.</p>
+          </div>
+        </aside>
+
+        <section class="club" id="panel-club">
+          <div class="club-head">
+            <h2>Lab monitor</h2>
+            <p>Same circuit as Club — use Club for the 3D stage.</p>
+          </div>
+          <canvas id="eyes-lab" width="1100" height="460" aria-label="Lab eye visualizer mirror"></canvas>
+          <p class="tiny">Primary eye viz lives on <a href="#club">#club</a>. Lab keeps full controls.</p>
+        </section>
+
+        <aside class="panel brain" id="panel-brain">
+          <h2>Brain stub</h2>
+          <p class="lede">
+            Three leaky integrate-and-fire toys. Names are <strong>proxies</strong>, not
+            identified cells.
+          </p>
+
+          <div class="neuron" data-id="dnl">
+            <header>
+              <span class="n-name">DN-L</span>
+              <span class="n-rate" id="rate-dnl">0.0 Hz</span>
+            </header>
+            <canvas class="trace" id="trace-dnl" width="320" height="64"></canvas>
+            <p class="note">
+              Proxy for DNa02 L <em>or</em> left-eye asymmetry. Do not claim identity
+              without data.
+            </p>
+          </div>
+
+          <div class="neuron" data-id="dnr">
+            <header>
+              <span class="n-name">DN-R</span>
+              <span class="n-rate" id="rate-dnr">0.0 Hz</span>
+            </header>
+            <canvas class="trace" id="trace-dnr" width="320" height="64"></canvas>
+            <p class="note">
+              Proxy for DNa02 R <em>or</em> right-eye asymmetry. Same caveat. Same joke.
+            </p>
+          </div>
+
+          <div class="neuron" data-id="gf">
+            <header>
+              <span class="n-name">Giant Fiber</span>
+              <span class="n-rate" id="rate-gf">0.0 Hz</span>
+            </header>
+            <canvas class="trace" id="trace-gf" width="320" height="64"></canvas>
+            <p class="note">
+              Escape-circuit proxy (GF / DNp01 in other datasets — verify in explorer).
+              One spike <em>proposes</em> a dump; the owned policy + phrase gate must co-sign (unless you override).
+            </p>
+          </div>
+
+          <div class="mean">
+            <span>Mean DN rate</span>
+            <strong id="mean-rate">0.0 Hz</strong>
+            <span class="tiny">drives master volume (soft-limited)</span>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="caption-bar" id="caption-bar">
+        <!-- filled by ui/captions.js -->
+      </footer>
+    </div>
+
+    <div id="gate" class="gate">
+      <div class="gate-card">
+        <p class="kicker">scientific comedy · not a paper · not Spotify</p>
+        <h1>DJ Drosophila</h1>
+        <p class="manifesto">
+          MaleCNS actuators meet unsupervised policy.<br />
+          Consciousness not included.<br />
+          A wiring diagram walks into a club — and stays on the decks.
+        </p>
+        <button type="button" id="engage" class="primary huge">Enter the club</button>
+        <p class="tiny">
+          Browsers require a click before Web Audio. Fruit flies require neither a click
+          nor this sentence. Bundled unsupervised model auto-loads.
+        </p>
+        <p class="gate-links tiny">
+          <a href="#story">Read the story</a> · <a href="#lab" data-lab-only>Open the lab</a>
+        </p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

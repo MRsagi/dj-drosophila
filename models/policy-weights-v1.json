@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "fittedAt": "2026-09-12T09:45:45.207Z",
+  "nSkip": 12600,
+  "nXfader": 12600,
+  "skip": [
+    -7.399894165111237,
+    0.42173442045116877,
+    0.980102645479825,
+    -0.5110768485145878,
+    -0.4626639721729516,
+    0.8146627067896068,
+    1.9819901331319327,
+    1.275728842946469,
+    1.224418522057991,
+    0
+  ],
+  "xfader": [
+    0.029164360690843206,
+    1.7897982193228779,
+    0.7519516201907563,
+    0.0382939471215941,
+    0.0494138125823093,
+    0.05105515272160394
+  ],
+  "style": {
+    "stadium-hype": 0.1,
+    "psy-peak": -0.4,
+    "bass-blender": 0.55
+  },
+  "note": "Supervised/weak fit from 12600 rows (skip=12600, xf=12600). Still your policy — not MaleCNS learning. Offline synthetic self-labels — not artist weights.",
+  "source": "offline-synthetic-v1"
+}

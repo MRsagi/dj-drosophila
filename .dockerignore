@@ -1,0 +1,8 @@
+node_modules
+dist
+server/hls/*.ts
+server/hls/*.m3u8
+server/cache
+.git
+.env
+*.log

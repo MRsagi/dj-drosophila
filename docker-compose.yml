@@ -1,0 +1,43 @@
+# Always-on shared live radio for Ponytail / Cloudflare Tunnel on sagi-net.
+# Public clients are READ-ONLY (HLS + SSE). Lab UI is OFF by default.
+services:
+  live:
+    build: .
+    container_name: dj-drosophila-live
+    restart: unless-stopped
+    # Reachable on Docker network only — Cloudflare Tunnel points at
+    # http://dj-drosophila-live:8080 (no host ports published).
+    expose:
+      - "8080"
+    networks:
+      - sagi-net
+    environment:
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      SERVE_DIST: "1"
+      ENABLE_LAB: "${ENABLE_LAB:-false}"
+      PUBLIC_URL: "${PUBLIC_URL:-https://dj.sagirosenthal.com}"
+      SHOW_SEED: "${SHOW_SEED:-dj-drosophila}"
+      SHOW_START_MS: "${SHOW_START_MS:-}"
+      ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
+    volumes:
+      - live-hls:/app/server/hls
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/api/live/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+volumes:
+  live-hls:
+
+networks:
+  sagi-net:
+    external: true
