@@ -5,5 +5,7 @@ server/hls/
 .env
 .DS_Store
 server/cache/show-log.json
+server/cache/radio.m3u
+server/cache/radio.m3u.*.tmp
 scripts/out/
 server/cache/crossfade-validation-*.jsonl

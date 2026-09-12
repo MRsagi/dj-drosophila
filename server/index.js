@@ -19,6 +19,11 @@
  *   SHOW_START_MS     optional fixed show epoch
  *   ADMIN_TOKEN       optional secret for /api/admin/* (X-Admin-Token header only)
  *   MAX_SSE_CLIENTS   max concurrent SSE connections (default 200)
+ *   STREAM_ENGINE     liquidsoap | ffmpeg | auto (default auto; Docker: liquidsoap)
+ *   ICECAST_HOST      optional Icecast hostname; unset skips Icecast (HLS still runs)
+ *   ICECAST_PORT      default 8000
+ *   ICECAST_PASSWORD  Icecast source password
+ *   ICECAST_MOUNT     default /drosophila
  */
 
 import http from 'node:http';
@@ -28,6 +33,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createSchedule } from './schedule.js';
 import { createHlsProducer, assertFfmpeg, HLS_DIR } from './ffmpegStream.js';
+import { createLiquidsoapProducer, resolveStreamEngine } from './liquidsoapStream.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -165,9 +171,12 @@ function tryFile(res, filePath) {
 async function main() {
   await assertFfmpeg();
 
+  const streamEngine = await resolveStreamEngine();
   const schedule = createSchedule();
-  const producer = createHlsProducer(schedule);
+  const producer =
+    streamEngine === 'liquidsoap' ? createLiquidsoapProducer(schedule) : createHlsProducer(schedule);
   await producer.start();
+  console.info(`[live] stream engine: ${streamEngine}`);
 
   /** @type {Set<import('node:http').ServerResponse>} */
   const sseClients = new Set();
@@ -279,7 +288,9 @@ async function main() {
     if (pathname === '/api/live/health') {
       sendJson(res, 200, {
         ok: true,
+        streamEngine,
         ffmpeg: true,
+        liquidsoap: streamEngine === 'liquidsoap',
         hls: producer.ready,
         showStart: schedule.showStartMs,
         seed: schedule.seed,
@@ -290,6 +301,7 @@ async function main() {
         publicUrl: PUBLIC_URL || null,
         readOnly: true,
         sharedOnly: true,
+        icecast: Boolean(process.env.ICECAST_HOST),
       });
       return;
     }
@@ -343,7 +355,9 @@ async function main() {
     console.info(`[live] showStart=${new Date(schedule.showStartMs).toISOString()} seed=${schedule.seed}`);
     console.info(`[live] tracks=${schedule.fileTracks.length} cycle≈${schedule.cycleSec.toFixed(0)}s`);
     console.info(`[live] now: ${st.statusLine} · ${st.trackA?.title} / ${st.trackB?.title}`);
-    console.info(`[live] HLS /hls/live.m3u8 · SSE /api/live/state (max ${MAX_SSE_CLIENTS}) · health /api/live/health`);
+    console.info(
+      `[live] engine=${streamEngine} · HLS /hls/live.m3u8 · SSE /api/live/state (max ${MAX_SSE_CLIENTS}) · health /api/live/health`,
+    );
     console.info(`[live] Club UI: http://127.0.0.1:${PORT}/#club`);
     console.info(`[live] ENABLE_LAB=${ENABLE_LAB} PUBLIC_URL=${PUBLIC_URL || '(unset)'} readOnly=true`);
     if (ADMIN_TOKEN) console.info('[live] /api/admin/status available with ADMIN_TOKEN');

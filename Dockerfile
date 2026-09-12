@@ -1,8 +1,10 @@
-# DJ Drosophila — always-on shared live radio (Node + ffmpeg)
-FROM node:22-bookworm-slim
+# DJ Drosophila — always-on shared live radio (Node + Liquidsoap + ffmpeg)
+# Trixie ships Liquidsoap 2.3.x (cue metadata, crossfade override_duration,
+# output.file.hls). Bookworm only has 2.1.3, which cannot run server/radio.liq.
+FROM node:22-trixie-slim
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+  && apt-get install -y --no-install-recommends liquidsoap ffmpeg ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -13,13 +15,18 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+RUN mkdir -p /app/server/hls /app/server/cache \
+  && printf '#EXTM3U\n' > /app/server/cache/radio.m3u \
+  && liquidsoap -c /app/server/radio.liq
+
 # Public production defaults: shared live only, no lab
 ENV NODE_ENV=production \
     PORT=8080 \
     HOST=0.0.0.0 \
     SERVE_DIST=1 \
     ENABLE_LAB=false \
-    SHOW_SEED=dj-drosophila
+    SHOW_SEED=dj-drosophila \
+    STREAM_ENGINE=liquidsoap
 
 EXPOSE 8080
 

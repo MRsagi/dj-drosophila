@@ -11,16 +11,29 @@ Clients are **read-only**: there is no public API to skip, cue, or override the 
 |--------|------|
 | `server/djMind.js` | **Fly DJ mind** — decides *when* to leave and *how long* to blend (≈8–32s), with sci-comedy reasons |
 | `server/schedule.js` | Show log of mind decisions → wall-clock PLAYING → TRANSITION; ffprobe durations; shared timeline |
-| `server/ffmpegStream.js` | ffmpeg → `server/hls/live.m3u8`. Acrossfade with real outgoing audio; no EOF ghost fades |
-| `server/index.js` | Serves HLS, SSE `/api/live/state`, static `dist/`, read-only config/health |
+| `server/liquidsoapPlaylist.js` | Show log → annotated `radio.m3u` (`liq_cue_in` / `liq_cue_out` / `liq_cross_duration`) |
+| `server/radio.liq` + `liquidsoapStream.js` | **Default engine** — one Liquidsoap daemon, cue_cut-at-request, `crossfade`, HLS + optional Icecast |
+| `server/ffmpegStream.js` | Dev fallback if `liquidsoap` is not on PATH — ffmpeg → `server/hls/live.m3u8` |
+| `server/index.js` | Selects `STREAM_ENGINE`, serves HLS, SSE `/api/live/state`, static `dist/`, read-only config/health |
 | Frontend `?` / auto-detect | `<audio>` + **hls.js**; HUD / FlyDJ follow SSE (`xfaderEdge`, `mindReason`) |
+
+Web clients are unchanged: they still fetch `/hls/live.m3u8` and `/api/live/state`. Liquidsoap writes MPEG-TS segments into `server/hls/` (media playlist `live.m3u8`, master `index.m3u8`).
+
+```
+Mind / schedule  →  radio.m3u  →  Liquidsoap playlist (watch)
+                                 →  cue in/out from annotate
+                                 →  crossfade (fade.in / fade.out / smooth_add)
+                                 →  fallback (quiet sine bed)
+                                 →  output.file.hls  →  /hls/live.m3u8
+                                 →  output.icecast   (only if ICECAST_HOST is set)
+```
 
 ### Public APIs (read-only)
 
 - `GET /hls/live.m3u8` (+ segments) — shared audio
 - `GET /api/live/state` — JSON snapshot **or** `Accept: text/event-stream` SSE
 - `GET /api/live/config` — `{ sharedOnly, enableLab, readOnly, streamUrl, … }`
-- `GET /api/live/health` — liveness for Docker / Tunnel
+- `GET /api/live/health` — liveness for Docker / Tunnel (`streamEngine: "liquidsoap" | "ffmpeg"`, `hls`, `icecast`)
 
 Any `POST /api/control`, `/api/skip`, etc. returns **403**.  
 Optional `GET /api/admin/status` requires header `X-Admin-Token: $ADMIN_TOKEN` (not exposed in the UI).
@@ -46,7 +59,22 @@ North star: **“Hey, I trained a fruit fly to DJ — this is its set.”** Ever
 5. **Must-leave before EOF**: `leaveAt ≤ duration − fadeSec − 1` so acrossfade still has outgoing energy (never “play to silence then fake blend”).
 6. Decisions append to an **append-only show log** (`server/cache/show-log.json`) keyed by show time — deterministic from `SHOW_SEED` + history so reconnecting clients stay on the same set.
 
-### Crossfade / ffmpeg contract
+### Crossfade / Liquidsoap contract
+
+The fly still decides leave time and fade length; Liquidsoap **executes** the blend in one process (no ffmpeg spawn per PLAYING/TRANSITION, no PTS reset across HLS segments).
+
+- Each show-log row becomes one `annotate:` request in `server/cache/radio.m3u`.
+- `liq_cue_in` / `liq_cue_out` cut the file at the mind’s leave point (cue processing is built into request resolution; `cue_cut` was removed in Liquidsoap 2.2.4).
+- `liq_fade_in` of track N is the previous row’s `fadeSec`; `liq_fade_out` is this row’s `fadeSec`; `liq_cross_duration` is the overlap (`crossfade` `override_duration`).
+- Transition helper: `fade.out` + `fade.in` (sin) mixed with `smooth_add` (`add(normalize=false)`).
+- Playlist `mode="normal"`, `loop=false`, `reload_mode="watch"`. Node writes **remaining** (not-yet-played) rows so a reload does not replay history, and skips rewrites in the last ~40s of PLAYING so the prefetch buffer for the next crossfade stays intact.
+- `fallback` onto a quiet sine bed so the encoder never stalls if the M3U runs dry.
+- HLS: `output.file.hls` → 2s MPEG-TS segments in `server/hls/`. Club clients keep using `/hls/live.m3u8`.
+- Icecast: `output.icecast` only when `ICECAST_HOST` is non-empty. HLS is independent and always on.
+
+### ffmpeg fallback contract
+
+Used when `STREAM_ENGINE=ffmpeg` or `liquidsoap` is missing locally:
 
 - PLAYING encodes from seek for the mind’s play window **once** (loops only if the file is shorter than the window).
 - TRANSITION `fromSeek` = play end (with `fadeSec` of audio left); `toSeek` = start of next (or mid-join).
@@ -60,12 +88,14 @@ SSE `mindReason` + `xfaderEdge` drive the club HUD. During TRANSITION the xfader
 ## Requirements
 
 - **Node 20+**
-- **ffmpeg on PATH** (AAC encode + `acrossfade` / `amix`)
+- **ffmpeg / ffprobe on PATH** (crate duration probes; also the local HLS fallback)
+- **liquidsoap 2.2.4+ on PATH** for the production engine (Debian Trixie: `apt-get install liquidsoap` → 2.3.x). Optional locally — the server logs a notice and falls back to ffmpeg.
 - CC0 mp3s under `public/crate/` (see `LICENSES.md`)
 
 ```bash
-# Debian/Ubuntu
-sudo apt-get install -y ffmpeg
+# Debian/Ubuntu (Trixie / production-like)
+sudo apt-get install -y liquidsoap ffmpeg
+liquidsoap --version
 ffmpeg -version
 ```
 
@@ -146,8 +176,23 @@ Keep a single always-on instance — shared live needs one continuous encoder + 
 | `ADMIN_TOKEN` | empty | Enables `/api/admin/status` only (`X-Admin-Token` header) |
 | `MAX_SSE_CLIENTS` | `200` | Cap concurrent SSE HUD listeners (503 when full) |
 | `SERVE_DIST` | `1` | Serve Vite `dist/` |
+| `STREAM_ENGINE` | `auto` locally / `liquidsoap` in Docker | `liquidsoap` \| `ffmpeg` \| `auto`. Auto uses liquidsoap when the binary exists, otherwise ffmpeg with a log notice. |
+| `ICECAST_HOST` | empty | If set, Liquidsoap also streams to Icecast. HLS is unchanged. |
+| `ICECAST_PORT` | `8000` | Icecast port |
+| `ICECAST_PASSWORD` | empty | Icecast source password |
+| `ICECAST_MOUNT` | `/drosophila` | Icecast mount |
+| `ICECAST_USER` | `source` | Icecast source user |
 
-## ffmpeg assumptions
+## Liquidsoap assumptions
+
+- **Liquidsoap 2.2.4+** (image uses Debian Trixie 2.3.x). Bookworm’s 2.1.3 cannot run `server/radio.liq`.
+- Cue points: annotate `liq_cue_in` / `liq_cue_out` (request-layer successor to `cue_cut`)
+- Transitions: `cross` + `fade.in` / `fade.out` / `smooth_add`; duration from `liq_cross_duration`
+- HLS: `%ffmpeg` MPEG-TS AAC, `segment_duration=2`, media playlist `live.m3u8`
+- Icecast skipped cleanly when `ICECAST_HOST` is unset
+- Check the script without streaming: `liquidsoap -c server/radio.liq` (needs a dummy `server/cache/radio.m3u`)
+
+## ffmpeg assumptions (fallback engine)
 
 - `ffmpeg` + `ffprobe` on PATH inside the container/host
 - Encoders: **libaac** / native `aac`, demux **mp3**
@@ -171,5 +216,6 @@ If acrossfade fails for a pair, the producer logs a warning and uses short fade-
 | Script | Purpose |
 |--------|---------|
 | `npm run build` | Static Vite build (lab+club assets) |
-| `npm run live` | Always-on Node live server (needs ffmpeg) |
+| `npm run live` | Always-on Node live server (liquidsoap if present, else ffmpeg) |
+| `npm test` | Annotated M3U / cue-math unit tests |
 | `npm run live:build` | `build` then `live` |

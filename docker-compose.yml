@@ -20,6 +20,12 @@ services:
       SHOW_SEED: "${SHOW_SEED:-dj-drosophila}"
       SHOW_START_MS: "${SHOW_START_MS:-}"
       ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
+      STREAM_ENGINE: "${STREAM_ENGINE:-liquidsoap}"
+      ICECAST_HOST: "${ICECAST_HOST:-}"
+      ICECAST_PORT: "${ICECAST_PORT:-8000}"
+      ICECAST_PASSWORD: "${ICECAST_PASSWORD:-}"
+      ICECAST_MOUNT: "${ICECAST_MOUNT:-/drosophila}"
+      ICECAST_USER: "${ICECAST_USER:-source}"
     volumes:
       - live-hls:/app/server/hls
     healthcheck:

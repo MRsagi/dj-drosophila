@@ -14,7 +14,7 @@ Credit: MaleCNS data from **FlyEM / HHMI Janelia**, the **Cambridge Connectomics
 ## Shared 24/7 live radio
 
 Public deploy is an **always-on shared HLS stream** (everyone hears the same music).  
-See **[docs/LIVE.md](docs/LIVE.md)** for Docker, Cloudflare Tunnel, `ENABLE_LAB=false`, and ffmpeg.
+See **[docs/LIVE.md](docs/LIVE.md)** for Docker, Cloudflare Tunnel, `ENABLE_LAB=false`, Liquidsoap, and the ffmpeg fallback.
 
 ```bash
 npm run live:build          # local shared radio
