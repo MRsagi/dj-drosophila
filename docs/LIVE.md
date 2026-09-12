@@ -9,10 +9,11 @@ Clients are **read-only**: there is no public API to skip, cue, or override the 
 
 | Piece | Role |
 |--------|------|
-| `server/schedule.js` | Wall-clock PLAYING → TRANSITION schedule from CC0 files in `public/crate/` + `src/crate/manifest.json` |
-| `server/ffmpegStream.js` | ffmpeg → `server/hls/live.m3u8` (+ `.ts` segments). Acrossfade on TRANSITION; amix fade fallback |
+| `server/djMind.js` | **Fly DJ mind** — decides *when* to leave and *how long* to blend (≈8–32s), with sci-comedy reasons |
+| `server/schedule.js` | Show log of mind decisions → wall-clock PLAYING → TRANSITION; ffprobe durations; shared timeline |
+| `server/ffmpegStream.js` | ffmpeg → `server/hls/live.m3u8`. Acrossfade with real outgoing audio; no EOF ghost fades |
 | `server/index.js` | Serves HLS, SSE `/api/live/state`, static `dist/`, read-only config/health |
-| Frontend `?` / auto-detect | `<audio>` + **hls.js** plays shared stream; HUD / FlyDJ follow SSE (no local `setEngine` audio) |
+| Frontend `?` / auto-detect | `<audio>` + **hls.js**; HUD / FlyDJ follow SSE (`xfaderEdge`, `mindReason`) |
 
 ### Public APIs (read-only)
 
@@ -30,6 +31,30 @@ Query-string tokens are **rejected**; comparison uses `crypto.timingSafeEqual`.
 - Max concurrent SSE clients: **`MAX_SSE_CLIENTS`** (default **200**). When full, new `Accept: text/event-stream` requests get **503** (JSON polling still works).
 - State events ~every 500ms; **heartbeat** comment every 15s to keep proxies from idle-dropping connections.
 - Static/HLS paths use a hardened `safeJoin` (`path.resolve` + `path.sep` prefix check) to block traversal.
+
+
+## DJ mind (the fly’s set)
+
+North star: **“Hey, I trained a fruit fly to DJ — this is its set.”** Everyone on the shared stream hears the same decisions.
+
+### How it chooses when / how
+
+1. **Min play** (≥ ~30s, shorter only for tiny beds) — xfader stays **glued to an edge** while PLAYING (~90% of the time).
+2. Each **mind tick** (~2s) scores: synthetic energy arc, phrase proximity (BPM/bars), novelty vs recent tracks, BPM/energy match to candidates, patience.
+3. Soft leave only after a cushion past min play, usually on a **phrase gate**, with a comedy reason in SSE (`mindReason`), e.g. `DNa02 bias → energy crash · leave in ~4 bars`.
+4. **Fade length is chosen** (not a fixed timer): roughly **8–32s** from style blend speed, energy/BPM compatibility, and a little seeded jitter — longer on novelty / compatible pairs, shorter when aggressive.
+5. **Must-leave before EOF**: `leaveAt ≤ duration − fadeSec − 1` so acrossfade still has outgoing energy (never “play to silence then fake blend”).
+6. Decisions append to an **append-only show log** (`server/cache/show-log.json`) keyed by show time — deterministic from `SHOW_SEED` + history so reconnecting clients stay on the same set.
+
+### Crossfade / ffmpeg contract
+
+- PLAYING encodes from seek for the mind’s play window **once** (loops only if the file is shorter than the window).
+- TRANSITION `fromSeek` = play end (with `fadeSec` of audio left); `toSeek` = start of next (or mid-join).
+- Preferred filter: `acrossfade`; fallback `afade` + `amix`.
+
+### HUD
+
+SSE `mindReason` + `xfaderEdge` drive the club HUD. During TRANSITION the xfader knob travels with the blend; pill shows `LIVE · TRANSITION`.
 
 ## Requirements
 
@@ -114,7 +139,8 @@ Keep a single always-on instance — shared live needs one continuous encoder + 
 | `HOST` | `0.0.0.0` | Bind address |
 | `PUBLIC_URL` | empty | Public https URL (docs/health) |
 | `ENABLE_LAB` | `false` | Must stay false on public deploy |
-| `SHOW_SEED` | `dj-drosophila` | Deterministic track rotation |
+| `SHOW_SEED` | `dj-drosophila` | Deterministic rotation + mind RNG |
+| `DJ_STYLE` | `psy-peak` | Mind style lane: `psy-peak` / `stadium-hype` / `bass-blender` |
 | `SHOW_START_MS` | boot time | Optional fixed show epoch (ms) |
 | `ADMIN_TOKEN` | empty | Enables `/api/admin/status` only (`X-Admin-Token` header) |
 | `MAX_SSE_CLIENTS` | `200` | Cap concurrent SSE HUD listeners (503 when full) |
@@ -124,7 +150,8 @@ Keep a single always-on instance — shared live needs one continuous encoder + 
 
 - `ffmpeg` + `ffprobe` on PATH inside the container/host
 - Encoders: **libaac** / native `aac`, demux **mp3**
-- Filters: `acrossfade` (preferred on TRANSITION), fallback `afade` + `amix`
+- Filters: `acrossfade` (preferred on TRANSITION; mind-chosen `fadeSec`), fallback `afade` + `amix`
+- Durations: **ffprobe** at crate load (`durationSec`) so play windows leave room for the fade
 - HLS: mux `hls` → MPEG-TS segments, sliding window (`delete_segments`), `omit_endlist`
 - Realtime pacing: `-re` so wall-clock schedule and audio stay aligned
 

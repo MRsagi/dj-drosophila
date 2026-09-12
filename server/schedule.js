@@ -1,41 +1,32 @@
 /**
- * Wall-clock deterministic live show schedule.
- * Mirrors setEngine PLAYING → TRANSITION → PLAYING using CC0 file tracks only.
- * State is a pure function of (showStartMs, now, seed) so reconnecting clients catch up.
+ * Wall-clock live show schedule driven by the DJ mind.
+ *
+ * Mind decides WHEN to leave and HOW long to crossfade; decisions are appended
+ * to an append-only show log so every listener shares the same timeline.
+ * getState / upcomingSegments read the log (never “play to EOF then fake blend”).
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  decideLeave,
+  mindTick,
+  MIN_FADE_SEC,
+  MAX_FADE_SEC,
+  MIND_TICK_SEC,
+  minPlayForTrack,
+} from './djMind.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const MANIFEST_PATH = path.join(ROOT, 'src/crate/manifest.json');
 const CRATE_DIR = path.join(ROOT, 'public/crate');
+const SHOW_LOG_PATH = path.join(__dirname, 'cache', 'show-log.json');
 
-/** Crossfade / TRANSITION window (seconds). Mid of setEngine's ~8–16s feel. */
-export const TRANSITION_SEC = 12;
-
-/**
- * Same formula as src/dj/setEngine.js plannedPlayLength for file tracks.
- * @param {{ durationHint?: number, bpm?: number, energy?: number }} track
- */
-export function plannedPlayLength(track) {
-  const dur = track?.durationHint;
-  if (typeof dur === 'number' && dur > 0) {
-    return Math.max(30, Math.min(360, dur * 0.95));
-  }
-  const bpm = track?.bpm || 124;
-  const energy = track?.energy ?? 0.6;
-  let base = 90;
-  if (bpm < 110) base = 145;
-  else if (bpm < 123) base = 115;
-  else if (bpm < 134) base = 95;
-  else if (bpm < 150) base = 75;
-  else base = 55;
-  base += (1 - energy) * 45;
-  return Math.max(45, Math.min(180, base));
-}
+/** Fallback only — real fades come from the mind (8–32s). */
+export const TRANSITION_SEC = 20;
 
 function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
@@ -46,7 +37,6 @@ function easeInOut(t) {
   return p * p * (3 - 2 * p);
 }
 
-/** Mulberry32 — deterministic shuffle from seed string. */
 function mulberry32(a) {
   return function rand() {
     let t = (a += 0x6d2b79f5);
@@ -75,17 +65,49 @@ function shuffle(arr, rand) {
 }
 
 /**
- * Resolve absolute path for a manifest file entry.
- * @param {{ file: string }} track
+ * Probe real media duration (seconds) via ffprobe. Returns null on failure.
+ * @param {string} filePath
  */
-export function resolveTrackPath(track) {
-  const rel = (track.file || '').replace(/^\//, ''); // crate/...
-  const abs = path.join(ROOT, 'public', rel);
-  return abs;
+export function probeDurationSec(filePath) {
+  try {
+    const out = execFileSync(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        filePath,
+      ],
+      { encoding: 'utf8', timeout: 20000 },
+    );
+    const n = Number(String(out).trim());
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Load CC0 file tracks that exist on disk (no NCS, no procedural, no slots).
+ * @deprecated fixed play lengths removed — mind decides. Kept for any imports.
+ */
+export function plannedPlayLength(track) {
+  const dur = track?.durationSec ?? track?.durationHint;
+  if (typeof dur === 'number' && dur > 0) {
+    return clamp(dur * 0.55, minPlayForTrack(dur), Math.max(45, dur - TRANSITION_SEC - 1));
+  }
+  return 90;
+}
+
+export function resolveTrackPath(track) {
+  const rel = (track.file || '').replace(/^\//, '');
+  return path.join(ROOT, 'public', rel);
+}
+
+/**
+ * Load CC0 file tracks; probe durationSec at load time.
  */
 export function loadFileTracks() {
   const raw = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
@@ -96,6 +118,12 @@ export function loadFileTracks() {
   for (const t of tracks) {
     const p = resolveTrackPath(t);
     if (fs.existsSync(p)) {
+      const probed = probeDurationSec(p);
+      const durationSec =
+        probed ?? (typeof t.durationHint === 'number' && t.durationHint > 0 ? t.durationHint : null);
+      if (probed == null) {
+        console.warn(`[live] ffprobe failed for ${p} — using durationHint=${t.durationHint ?? '?'}`);
+      }
       existing.push({
         id: t.id,
         title: t.title,
@@ -107,8 +135,11 @@ export function loadFileTracks() {
         file: t.file,
         path: p,
         durationHint: t.durationHint,
-        plannedSec: plannedPlayLength(t),
+        durationSec,
       });
+      console.info(
+        `[live] track ${t.id}: dur=${durationSec != null ? durationSec.toFixed(1) : '?'}s (mind-driven play)`,
+      );
     } else {
       console.warn(`[live] missing crate file, skip: ${p}`);
     }
@@ -123,30 +154,148 @@ export function loadFileTracks() {
  * @param {object} [opts]
  * @param {number} [opts.showStartMs]
  * @param {string} [opts.seed]
+ * @param {string} [opts.styleId]
  */
 export function createSchedule(opts = {}) {
   const seed = opts.seed || process.env.SHOW_SEED || 'dj-drosophila';
+  const styleId = opts.styleId || process.env.DJ_STYLE || 'psy-peak';
   const showStartMs =
     opts.showStartMs ??
     (process.env.SHOW_START_MS ? Number(process.env.SHOW_START_MS) : Date.now());
 
   const fileTracks = loadFileTracks();
+  const byId = new Map(fileTracks.map((t) => [t.id, t]));
   const rand = mulberry32(hashSeed(seed));
   const rotation = shuffle(fileTracks, rand);
 
-  /** One cycle through the rotation (play + transition each). */
-  const cycle = rotation.map((track, i) => {
-    const next = rotation[(i + 1) % rotation.length];
-    return {
-      track,
-      next,
-      plannedSec: track.plannedSec,
-      transitionSec: TRANSITION_SEC,
-      slotSec: track.plannedSec + TRANSITION_SEC,
-    };
-  });
+  /**
+   * Show log entry:
+   * { absIndex, trackId, nextId, playStartSec, leaveAtSec, fadeSec, reason, leaveScore }
+   * PLAYING = [playStartSec, leaveAtSec), TRANSITION = [leaveAtSec, leaveAtSec+fadeSec)
+   */
+  /** @type {object[]} */
+  const showLog = [];
+  let persistTimer = null;
 
-  const cycleSec = cycle.reduce((s, c) => s + c.slotSec, 0);
+  function persistLog() {
+    try {
+      fs.mkdirSync(path.dirname(SHOW_LOG_PATH), { recursive: true });
+      fs.writeFileSync(
+        SHOW_LOG_PATH,
+        JSON.stringify(
+          {
+            seed,
+            styleId,
+            showStartMs,
+            updatedAt: Date.now(),
+            entries: showLog,
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (err) {
+      console.warn('[live] show log persist failed', err.message);
+    }
+  }
+
+  function schedulePersist() {
+    if (persistTimer) return;
+    persistTimer = setTimeout(() => {
+      persistTimer = null;
+      persistLog();
+    }, 500);
+  }
+
+  function recentIds(uptoIndex) {
+    const ids = [];
+    for (let i = Math.max(0, uptoIndex - 5); i < uptoIndex && i < showLog.length; i++) {
+      ids.push(showLog[i].trackId);
+    }
+    return ids;
+  }
+
+  function candidatesFor(absIndex) {
+    // Prefer upcoming rotation order, but mind scores freely across crate
+    const rot = rotation.map((t, i) => rotation[(absIndex + 1 + i) % rotation.length]);
+    // Unique by id
+    const seen = new Set();
+    const out = [];
+    for (const t of rot) {
+      if (seen.has(t.id)) continue;
+      seen.add(t.id);
+      out.push(t);
+    }
+    return out;
+  }
+
+  /**
+   * Extend show log with one more mind decision (deterministic).
+   */
+  function extendLog() {
+    const absIndex = showLog.length;
+    let track;
+    let playStartSec;
+    if (absIndex === 0) {
+      track = rotation[0];
+      playStartSec = 0;
+    } else {
+      const prev = showLog[absIndex - 1];
+      track = byId.get(prev.nextId) || rotation[absIndex % rotation.length];
+      playStartSec = prev.leaveAtSec + prev.fadeSec;
+    }
+
+    const cands = candidatesFor(absIndex);
+    const decision = decideLeave({
+      seed,
+      styleId,
+      track,
+      candidates: cands,
+      recentIds: recentIds(absIndex),
+      absIndex,
+    });
+
+    const next = decision.nextTrack || cands[0] || rotation[(absIndex + 1) % rotation.length];
+    const fadeSec = clamp(decision.fadeSec, MIN_FADE_SEC, MAX_FADE_SEC);
+    const leaveAtSec = playStartSec + decision.playedSec;
+
+    const entry = {
+      absIndex,
+      trackId: track.id,
+      nextId: next.id,
+      playStartSec,
+      leaveAtSec,
+      fadeSec,
+      plannedPlaySec: decision.playedSec,
+      reason: decision.reason,
+      leaveScore: decision.leaveScore,
+    };
+    showLog.push(entry);
+    schedulePersist();
+    console.info(
+      `[live/mind] #${absIndex} ${track.title} play ${decision.playedSec.toFixed(0)}s → ${next.title} xf ${fadeSec.toFixed(0)}s · ${decision.reason}`,
+    );
+    return entry;
+  }
+
+  function ensureLogUntil(elapsedSec, horizonSec = 600) {
+    const needUntil = elapsedSec + horizonSec;
+    let guard = 0;
+    while (guard++ < 500) {
+      if (!showLog.length) {
+        extendLog();
+        continue;
+      }
+      const last = showLog[showLog.length - 1];
+      const lastEnd = last.leaveAtSec + last.fadeSec;
+      if (lastEnd >= needUntil) break;
+      extendLog();
+    }
+  }
+
+  // Bootstrap a few slots so HLS can plan ahead
+  ensureLogUntil(0, 900);
+  persistLog();
 
   function publicTrack(t) {
     if (!t) return null;
@@ -160,63 +309,74 @@ export function createSchedule(opts = {}) {
       license: t.license,
       file: t.file,
       durationHint: t.durationHint,
+      durationSec: t.durationSec ?? t.durationHint ?? null,
     };
   }
 
-  /**
-   * Locate absolute timeline slot for elapsed seconds since show start.
-   */
   function locate(elapsedSec) {
     if (elapsedSec < 0) elapsedSec = 0;
-    const cyclesDone = Math.floor(elapsedSec / cycleSec);
-    let into = elapsedSec - cyclesDone * cycleSec;
-    let absIndex = cyclesDone * cycle.length;
-    for (let i = 0; i < cycle.length; i++) {
-      const slot = cycle[i];
-      if (into < slot.plannedSec) {
+    ensureLogUntil(elapsedSec, 300);
+    for (let i = 0; i < showLog.length; i++) {
+      const e = showLog[i];
+      if (elapsedSec < e.leaveAtSec) {
+        const playedSec = elapsedSec - e.playStartSec;
         return {
-          absIndex: absIndex + i,
-          slotIndex: i,
+          absIndex: e.absIndex,
           phase: 'PLAYING',
-          intoSlot: into,
-          playedSec: into,
-          plannedSec: slot.plannedSec,
+          playedSec,
+          plannedSec: e.plannedPlaySec,
           transitionProgress: null,
-          transitionSec: slot.transitionSec,
-          track: slot.track,
-          next: slot.next,
-          remainingPlay: slot.plannedSec - into,
-          remainingTransition: slot.transitionSec,
+          transitionSec: e.fadeSec,
+          track: byId.get(e.trackId),
+          next: byId.get(e.nextId),
+          remainingPlay: e.leaveAtSec - elapsedSec,
+          remainingTransition: e.fadeSec,
+          mindReason: e.reason,
+          entry: e,
         };
       }
-      into -= slot.plannedSec;
-      if (into < slot.transitionSec) {
-        const prog = into / slot.transitionSec;
+      const transEnd = e.leaveAtSec + e.fadeSec;
+      if (elapsedSec < transEnd) {
+        const into = elapsedSec - e.leaveAtSec;
+        const prog = into / e.fadeSec;
         return {
-          absIndex: absIndex + i,
-          slotIndex: i,
+          absIndex: e.absIndex,
           phase: 'TRANSITION',
-          intoSlot: slot.plannedSec + into,
-          playedSec: slot.plannedSec,
-          plannedSec: slot.plannedSec,
+          playedSec: e.plannedPlaySec,
+          plannedSec: e.plannedPlaySec,
           transitionProgress: prog,
-          transitionSec: slot.transitionSec,
-          track: slot.track,
-          next: slot.next,
+          transitionSec: e.fadeSec,
+          track: byId.get(e.trackId),
+          next: byId.get(e.nextId),
           remainingPlay: 0,
-          remainingTransition: slot.transitionSec - into,
+          remainingTransition: transEnd - elapsedSec,
+          mindReason: e.reason,
+          entry: e,
         };
       }
-      into -= slot.transitionSec;
     }
-    // Should not reach — float edge: wrap to start of next cycle
-    return locate(elapsedSec + 0.001);
+    // Past log end — extend and retry
+    extendLog();
+    return locate(elapsedSec);
   }
 
   /**
-   * Full SSE / API state snapshot.
-   * @param {number} [nowMs]
+   * Live mind reason while PLAYING (updates each tick without rewriting log leave).
    */
+  function liveMindReason(loc, elapsedSec) {
+    if (loc.phase !== 'PLAYING' || !loc.track) return loc.mindReason;
+    const tick = mindTick({
+      seed,
+      styleId,
+      track: loc.track,
+      candidates: candidatesFor(loc.absIndex),
+      playedSec: loc.playedSec,
+      recentIds: recentIds(loc.absIndex),
+      absIndex: loc.absIndex,
+    });
+    return tick.reason;
+  }
+
   function getState(nowMs = Date.now()) {
     const serverTime = nowMs;
     const elapsedSec = (serverTime - showStartMs) / 1000;
@@ -225,8 +385,6 @@ export function createSchedule(opts = {}) {
     const activeDeck = loc.absIndex % 2 === 0 ? 'A' : 'B';
     const quietDeck = activeDeck === 'A' ? 'B' : 'A';
 
-    // During PLAYING: active = current track, quiet = next (preloaded visually)
-    // During TRANSITION: active still outgoing until flip; quiet = incoming
     const trackActive = loc.track;
     const trackNext = loc.next;
 
@@ -251,6 +409,8 @@ export function createSchedule(opts = {}) {
     const pad = (n) => String(n).padStart(2, '0');
     const timeStr = `${playMin}:${pad(playSec)} / ${planMin}:${pad(planSec)}`;
 
+    const mindReason = liveMindReason(loc, elapsedSec);
+
     let statusLine;
     if (loc.phase === 'TRANSITION') {
       statusLine = `TRANSITION ${Math.round((transitionProgress || 0) * 100)}% · ${activeDeck}→${quietDeck}`;
@@ -265,6 +425,7 @@ export function createSchedule(opts = {}) {
       serverTime,
       showStart: showStartMs,
       seed,
+      styleId,
       state: loc.phase,
       activeDeck,
       quietDeck,
@@ -276,25 +437,24 @@ export function createSchedule(opts = {}) {
       nextTrack: publicTrack(trackNext),
       transitionProgress,
       transitionSec: loc.transitionSec,
+      mindReason,
       statusLine,
       timeStr,
       edgeLabel,
       streamUrl: '/hls/live.m3u8',
-      // Internal (also useful for ffmpeg producer)
       _absIndex: loc.absIndex,
       _remainingPlay: loc.remainingPlay,
       _remainingTransition: loc.remainingTransition,
-      _trackPath: loc.track.path,
-      _nextPath: loc.next.path,
+      _trackPath: loc.track?.path,
+      _nextPath: loc.next?.path,
+      _trackDurationSec: loc.track?.durationSec ?? loc.track?.durationHint ?? null,
+      _nextDurationSec: loc.next?.durationSec ?? loc.next?.durationHint ?? null,
+      _playStartSec: loc.entry?.playStartSec ?? 0,
+      _leaveAtSec: loc.entry?.leaveAtSec ?? 0,
       _elapsedSec: elapsedSec,
     };
   }
 
-  /**
-   * Enumerate upcoming segments from a given time (for ffmpeg planning).
-   * @param {number} fromMs
-   * @param {number} horizonSec
-   */
   function upcomingSegments(fromMs, horizonSec = 3600) {
     const out = [];
     let t = fromMs;
@@ -310,6 +470,7 @@ export function createSchedule(opts = {}) {
           durationSec: dur,
           track: st.activeDeck === 'A' ? st.trackA : st.trackB,
           path: st._trackPath,
+          // File position = how far into this play window (started at 0)
           seekSec: st.playedSec,
           absIndex: st._absIndex,
           activeDeck: st.activeDeck,
@@ -317,38 +478,56 @@ export function createSchedule(opts = {}) {
         t += dur * 1000;
       } else {
         const dur = st._remainingTransition;
+        const fadeSec = st.transitionSec;
+        const progress = st.transitionProgress || 0;
+        const fileDur = st._trackDurationSec;
+        // Play-end in file = planned play length (we always start tracks at 0).
+        // Clamp so fadeSec of outgoing audio remains for acrossfade.
+        let playEnd = st.plannedSec;
+        if (typeof fileDur === 'number' && fileDur > 0) {
+          playEnd = Math.min(playEnd, Math.max(0, fileDur - fadeSec));
+        }
         out.push({
           kind: 'TRANSITION',
           startMs: t,
           durationSec: dur,
           fromPath: st._trackPath,
           toPath: st._nextPath,
-          // Seek into outgoing track near its planned end
-          fromSeekSec: Math.max(0, st.plannedSec - st.transitionSec + (st.transitionProgress || 0) * st.transitionSec),
-          toSeekSec: (st.transitionProgress || 0) * st.transitionSec,
-          fadeSec: st.transitionSec,
-          progressAtStart: st.transitionProgress || 0,
+          fromSeekSec: Math.max(0, playEnd + progress * fadeSec),
+          toSeekSec: progress * fadeSec,
+          fadeSec,
+          progressAtStart: progress,
+          fromDurationSec: fileDur,
+          toDurationSec: st._nextDurationSec,
           absIndex: st._absIndex,
           activeDeck: st.activeDeck,
           fromTrack: st.activeDeck === 'A' ? st.trackA : st.trackB,
           toTrack: st.nextTrack,
+          mindReason: st.mindReason,
         });
         t += dur * 1000;
       }
-      // Nudge past boundary float noise
       t += 1;
     }
     return out;
   }
 
+  // Approximate cycle length for health logs
+  const cycleSec = showLog.reduce((s, e) => s + e.plannedPlaySec + e.fadeSec, 0);
+
   return {
     showStartMs,
     seed,
+    styleId,
     rotation,
-    cycle,
+    cycle: showLog,
     cycleSec,
     getState,
     upcomingSegments,
     fileTracks,
+    showLog,
+    ensureLogUntil,
   };
 }
+
+export { MIN_FADE_SEC, MAX_FADE_SEC, MIND_TICK_SEC };

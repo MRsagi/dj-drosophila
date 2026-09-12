@@ -1,9 +1,10 @@
 /**
- * Continuous HLS producer driven by the wall-clock schedule.
+ * Continuous HLS producer driven by the wall-clock / mind schedule.
  *
- * PLAYING: ffmpeg -re reads current mp3 (loop if short) for remaining play time.
- * TRANSITION: acrossfade between outgoing/incoming over ~TRANSITION_SEC.
- * Falls back to sequential fade-out/fade-in if acrossfade fails.
+ * PLAYING: ffmpeg -re reads current mp3 from seek for remaining play time.
+ *          Loops ONLY when the file is shorter than the play window.
+ * TRANSITION: acrossfade with fromSeek at play-end (fadeSec of audio left)
+ *             and toSeek at start of next (or mid-join). Mind chooses fadeSec.
  *
  * Requires ffmpeg on PATH.
  */
@@ -12,7 +13,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TRANSITION_SEC } from './schedule.js';
+import { TRANSITION_SEC, MIN_FADE_SEC } from './schedule.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const HLS_DIR = path.join(__dirname, 'hls');
@@ -40,7 +41,6 @@ function countSegments() {
 }
 
 /**
- * Run ffmpeg; resolve when process exits. Reject on non-zero unless allowFail.
  * @param {string[]} args
  * @param {{ label?: string, allowFail?: boolean }} [opts]
  */
@@ -53,7 +53,6 @@ function runFfmpeg(args, opts = {}) {
     child.stderr.on('data', (buf) => {
       const s = buf.toString();
       stderr += s;
-      // Keep last lines noisy but useful
       const lines = s.trim().split('\n');
       for (const line of lines) {
         if (line && !line.includes('frame=') && !line.includes('size=')) {
@@ -66,7 +65,6 @@ function runFfmpeg(args, opts = {}) {
     });
     child.on('close', (code) => {
       if (code === 0 || code === 255 || opts.allowFail) {
-        // 255 often means killed/SIGINT mid-stream which we treat as OK when restarting
         resolve({ code, stderr });
       } else {
         reject(new Error(`${label} exited ${code}: ${stderr.slice(-800)}`));
@@ -76,7 +74,7 @@ function runFfmpeg(args, opts = {}) {
 }
 
 /**
- * @param {import('./schedule.js').createSchedule extends Function} schedule
+ * @param {ReturnType<import('./schedule.js').createSchedule>} schedule
  */
 export function createHlsProducer(schedule) {
   let running = false;
@@ -130,66 +128,78 @@ export function createHlsProducer(schedule) {
       });
       child.on('close', (code) => {
         currentChild = null;
-        // Advance start number based on files present
         nextStartNumber = Math.max(nextStartNumber, countSegments());
         playlistReady = fs.existsSync(path.join(HLS_DIR, 'live.m3u8'));
         if (aborted || code === 0 || code === 255 || code === null) {
           resolve({ code, stderr });
         } else {
           console.warn(`[live/ffmpeg] ${label} exit ${code}: ${stderr.slice(-400)}`);
-          resolve({ code, stderr }); // soft-fail; loop continues
+          resolve({ code, stderr });
         }
       });
     });
   }
 
   /**
-   * PLAYING segment: realtime encode from seek for durationSec.
-   * Loops short files via -stream_loop.
+   * PLAYING: encode from seek for durationSec once when file is long enough.
+   * Loop only if the file is shorter than the remaining play window.
    */
   async function encodePlaying(seg) {
     const dur = Math.max(0.5, seg.durationSec);
     let seek = Math.max(0, seg.seekSec || 0);
-    // Wrap seek for short beds using durationHint when available
-    const hint = seg.track?.durationHint;
-    if (typeof hint === 'number' && hint > 1) {
-      seek = seek % hint;
+    const fileDur = seg.track?.durationSec ?? seg.track?.durationHint;
+
+    const args = ['-hide_banner', '-loglevel', 'error', '-re'];
+
+    if (typeof fileDur === 'number' && fileDur > 1) {
+      seek = seek % fileDur;
+      const remainingInFile = fileDur - seek;
+      // Loop only when this play window needs more audio than the file has left
+      if (remainingInFile < dur - 0.25) {
+        args.push('-stream_loop', '-1');
+      }
+    } else {
+      // Unknown duration — loop as safety for short beds
+      args.push('-stream_loop', '-1');
     }
-    const args = [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-re',
-      '-stream_loop',
-      '-1',
-      '-i',
-      seg.path,
-      '-ss',
-      String(seek),
-      '-t',
-      String(dur),
-      ...hlsOutputArgs(),
-    ];
-    await spawnTracked(args, `PLAYING ${seg.track?.title || '?'} ${dur.toFixed(1)}s @${seek.toFixed(1)}`);
+
+    // -ss after -i: accurate decode seek into mp3
+    args.push('-i', seg.path, '-ss', String(seek), '-t', String(dur), ...hlsOutputArgs());
+
+    await spawnTracked(
+      args,
+      `PLAYING ${seg.track?.title || '?'} ${dur.toFixed(1)}s @${seek.toFixed(1)}${args.includes('-stream_loop') ? ' (loop)' : ''}`,
+    );
   }
 
   /**
    * TRANSITION: acrossfade remaining window between from/to.
+   * fromSeek = play end (fadeSec of outgoing audio left); toSeek = start of next.
    */
   async function encodeTransition(seg) {
     const fadeTotal = seg.fadeSec || TRANSITION_SEC;
     const remaining = Math.max(0.5, seg.durationSec);
-    // Position within the full fade when joining mid-transition
     const progress = seg.progressAtStart || 0;
-    const fromSeek = Math.max(0, (seg.fromSeekSec ?? 0));
-    const toSeek = Math.max(0, (seg.toSeekSec ?? 0));
+    const fileDur = seg.fromDurationSec ?? seg.fromTrack?.durationSec ?? seg.fromTrack?.durationHint;
 
-    // Take enough audio from each side for the remaining acrossfade length
+    let fromSeek = Math.max(0, seg.fromSeekSec ?? 0);
+    let toSeek = Math.max(0, seg.toSeekSec ?? 0);
+
+    // Guarantee fadeSec (remaining) of outgoing samples — never start at EOF
+    if (typeof fileDur === 'number' && fileDur > 0) {
+      const maxSeek = Math.max(0, fileDur - remaining);
+      if (fromSeek > maxSeek) {
+        console.warn(
+          `[live/ffmpeg] fromSeek ${fromSeek.toFixed(1)} past safe max ${maxSeek.toFixed(1)} — clamping`,
+        );
+        fromSeek = maxSeek;
+      }
+    }
+
     const need = remaining + 0.25;
 
-    const filter = `[0:a]afade=t=out:st=0:d=${remaining}[a0];[1:a]afade=t=in:st=0:d=${remaining}[a1];[a0][a1]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
-
     const acrossfadeFilter = `[0:a][1:a]acrossfade=d=${remaining}:c1=tri:c2=tri[aout]`;
+    const amixFilter = `[0:a]afade=t=out:st=0:d=${remaining}[a0];[1:a]afade=t=in:st=0:d=${remaining}[a1];[a0][a1]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
 
     const tryAcross = [
       '-hide_banner',
@@ -218,10 +228,9 @@ export function createHlsProducer(schedule) {
     const before = countSegments();
     await spawnTracked(
       tryAcross,
-      `TRANSITION acrossfade ${remaining.toFixed(1)}s (${seg.fromTrack?.title} → ${seg.toTrack?.title})`,
+      `TRANSITION acrossfade ${remaining.toFixed(1)}s/${fadeTotal.toFixed(0)}s (${seg.fromTrack?.title} → ${seg.toTrack?.title}) from@${fromSeek.toFixed(1)}`,
     );
 
-    // If acrossfade produced nothing useful, fall back to amix fades
     if (countSegments() <= before && !aborted) {
       console.warn('[live/ffmpeg] acrossfade produced no new segments — trying amix fade');
       const fallback = [
@@ -242,7 +251,7 @@ export function createHlsProducer(schedule) {
         '-i',
         seg.toPath,
         '-filter_complex',
-        filter,
+        amixFilter,
         '-map',
         '[aout]',
         ...hlsOutputArgs(),
@@ -250,8 +259,8 @@ export function createHlsProducer(schedule) {
       await spawnTracked(fallback, `TRANSITION amix-fade ${remaining.toFixed(1)}s`);
     }
 
-    void fadeTotal;
     void progress;
+    void MIN_FADE_SEC;
   }
 
   async function loop() {
@@ -264,7 +273,6 @@ export function createHlsProducer(schedule) {
           await sleep(500);
           continue;
         }
-        // If we're slightly behind schedule start, skip wait; if ahead, wait
         const waitMs = seg.startMs - Date.now();
         if (waitMs > 50) {
           await sleep(Math.min(waitMs, 2000));
@@ -294,7 +302,6 @@ export function createHlsProducer(schedule) {
       clearHls();
       nextStartNumber = 0;
       playlistReady = false;
-      // Write a stub playlist so clients probing early don't 404 forever
       fs.writeFileSync(
         path.join(HLS_DIR, 'live.m3u8'),
         '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:EVENT\n',
@@ -330,3 +337,6 @@ export function assertFfmpeg() {
     });
   });
 }
+
+// silence unused in case tree-shaken analysis
+void runFfmpeg;

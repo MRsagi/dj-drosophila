@@ -374,7 +374,9 @@ export function createFlyDJ(canvas) {
     const spin = (0.04 + vol * 0.12 + kick * 0.08) * (state.running ? 1 : 0.02);
     decks.deckA.userData.platter.rotation.y += spin * (1 - Math.max(0, xf));
     decks.deckB.userData.platter.rotation.y += spin * (1 + Math.min(0, xf) * -1 + Math.max(0, xf));
-    decks.xfKnob.position.x += (xf * 0.22 - decks.xfKnob.position.x) * 0.08;
+    // Follow xfaderEdge during TRANSITION (mind blend); snappier so HUD/knob travel is visible
+    const knobRate = setState === 'TRANSITION' ? 0.22 : 0.08;
+    decks.xfKnob.position.x += (xf * 0.22 - decks.xfKnob.position.x) * knobRate;
 
     room.orb.rotation.y += 0.01;
     room.orb.rotation.x += 0.006;

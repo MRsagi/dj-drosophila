@@ -1,6 +1,6 @@
 # DJ Drosophila
 
-Scientific comedy: **MaleCNS fruit-fly connectome wiring (approx)** drives sensors for a DJ mixer in the browser — plus a separate **owned DJ policy** head you can steer, train **unsupervised** from your mix stream, and optionally fit with weak/supervised labels.
+**Hey, I trained a fruit fly to DJ — this is its set.** Scientific comedy: **MaleCNS fruit-fly connectome wiring (approx)** drives sensors for a DJ mixer — plus a **DJ mind** on the shared live radio (when to leave / how long to blend) and an **owned policy** head you can steer, train **unsupervised** from your mix stream, and optionally fit with weak/supervised labels. Fine print: not a conscious animal.
 
 Song visualizer → fly eyes → leaky-integrate-and-fire stub → **policy.decide()** → mixer + **3D fly DJ** → live Web Audio.
 

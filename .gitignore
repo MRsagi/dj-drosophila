@@ -4,3 +4,4 @@ server/hls/
 *.log
 .env
 .DS_Store
+server/cache/show-log.json

@@ -234,14 +234,14 @@ export function createHud() {
         );
       }
       if (els.nextTrack) {
-        setText(
-          els.nextTrack,
-          nextTitle
-            ? `Next: ${nextTitle}`
-            : setState === 'TRANSITION'
-              ? `Blending ${Math.round((transitionProgress || 0) * 100)}%`
-              : 'Next: —',
-        );
+        if (setState === 'TRANSITION') {
+          setText(
+            els.nextTrack,
+            `Blending ${Math.round((transitionProgress || 0) * 100)}%${nextTitle ? ` → ${nextTitle}` : ''}`,
+          );
+        } else {
+          setText(els.nextTrack, nextTitle ? `Next: ${nextTitle}` : 'Next: —');
+        }
       }
 
       if (els.livePill) {

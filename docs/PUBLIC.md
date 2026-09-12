@@ -1,13 +1,13 @@
 # Public deploy plan — DJ Drosophila
 
-Ship a **static** site: always-on club vibe, CC/procedural music, 3D fly DJ, honest story page, lab controls secondary. **Spotify is out.**
+North star: **“Hey, I trained a fruit fly to DJ — this is its set.”** Shared live radio = the fly’s set. Ship club + story + lab; CC/procedural music; honest fine print. **Spotify is out.**
 
 ## Routes (hash SPA)
 
 | Hash | View |
 | --- | --- |
 | `#club` (default) | Live club: Three.js fly DJ + dual-eye HUD + mixer meters + attribution footer |
-| `#story` | How training works (actuators + unsupervised policy; **not** conscious; credits) |
+| `#story` | Gag + truth: trained a fruit fly / MaleCNS proxies + mind; **not** conscious; credits |
 | `#lab` | Full lab: file load, override, policy train/export, brain traces |
 
 Hash routing needs **no** server redirects. `public/_redirects` and `vercel.json` are optional fallbacks if you later switch to path routes.

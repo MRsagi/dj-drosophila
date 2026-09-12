@@ -653,7 +653,8 @@ function loop(ts) {
   if (isSharedLiveClub() && running) {
     const snap = liveClient.setSnapshot();
     lastSet = snap;
-    const xf = snap?.xfaderTarget ?? 0;
+    // xfaderEdge from SSE — travels 0→1 during TRANSITION, parked ±1 while PLAYING
+    const xf = snap?.xfader ?? snap?.xfaderTarget ?? 0;
     const vol = 0.72;
     const now = ts / 1000;
     const empty = emptyFeat();
@@ -694,7 +695,9 @@ function loop(ts) {
       lastSkipAt: -10,
       lastSkipFrom: 'A',
       facets: viz.facetCounts(),
-      policyReason: 'SHARED LIVE · server schedule (no local policy mix)',
+      policyReason: snap?.mindReason
+        ? `FLY MIND · ${snap.mindReason}`
+        : 'FLY MIND · shared live set',
       policyAlpha,
       styleId,
       skipScore: 0,

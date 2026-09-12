@@ -195,12 +195,15 @@ export function createLiveClient(opts = {}) {
     setSnapshot() {
       const s = state;
       if (!s) return null;
+      const xf = typeof s.xfaderEdge === 'number' ? s.xfaderEdge : 0;
       return {
         state: s.state,
         activeSide: s.activeDeck,
         quietSide: s.quietDeck,
         activeEdge: s.activeDeck === 'A' ? -1 : 1,
-        xfaderTarget: s.xfaderEdge,
+        // Follow server xfaderEdge during TRANSITION (0→1 blend); parked ±1 while PLAYING
+        xfaderTarget: xf,
+        xfader: xf,
         lockXfader: s.state === 'PLAYING',
         playedSec: s.playedSec,
         plannedSec: s.plannedSec,
@@ -211,6 +214,7 @@ export function createLiveClient(opts = {}) {
         statusLine: s.statusLine,
         timeStr: s.timeStr,
         edgeLabel: s.edgeLabel,
+        mindReason: s.mindReason || null,
         canTransition: true,
       };
     },
