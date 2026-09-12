@@ -3,8 +3,8 @@
  *
  * PLAYING: ffmpeg -re reads current mp3 from seek for remaining play time.
  *          Loops ONLY when the file is shorter than the play window.
- * TRANSITION: acrossfade with fromSeek at play-end (fadeSec of audio left)
- *             and toSeek at start of next (or mid-join). Mind chooses fadeSec.
+ * TRANSITION: equal-power amix fade (primary) or acrossfade — full fadeSec blend.
+ *             fromSeek at play-end (fadeSec of audio left); toSeek at next start.
  *
  * Requires ffmpeg on PATH.
  */
@@ -35,9 +35,19 @@ function clearHls() {
   }
 }
 
-function countSegments() {
-  if (!fs.existsSync(HLS_DIR)) return 0;
-  return fs.readdirSync(HLS_DIR).filter((f) => f.endsWith('.ts')).length;
+/**
+ * Highest seg_NNNNN.ts index on disk, or -1 if none.
+ * CRITICAL: do NOT use file count — delete_segments keeps ~list_size files,
+ * so count !== next start number.
+ */
+function maxSegmentNumber() {
+  if (!fs.existsSync(HLS_DIR)) return -1;
+  let max = -1;
+  for (const f of fs.readdirSync(HLS_DIR)) {
+    const m = /^seg_(\d+)\.ts$/.exec(f);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return max;
 }
 
 /**
@@ -83,6 +93,8 @@ export function createHlsProducer(schedule) {
   let playlistReady = false;
   /** @type {import('node:child_process').ChildProcess|null} */
   let currentChild = null;
+  /** Absolute index of last fully encoded schedule slot (kind+absIndex). */
+  let lastEncodedKey = null;
 
   function hlsOutputArgs() {
     const flags = playlistReady
@@ -113,9 +125,13 @@ export function createHlsProducer(schedule) {
     ];
   }
 
+  function bumpStartNumber() {
+    nextStartNumber = Math.max(nextStartNumber, maxSegmentNumber() + 1);
+  }
+
   function spawnTracked(args, label) {
     return new Promise((resolve, reject) => {
-      console.info(`[live/ffmpeg] ${label}`);
+      console.info(`[live/ffmpeg] ${label} (start_number=${nextStartNumber})`);
       const child = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
       currentChild = child;
       let stderr = '';
@@ -128,7 +144,7 @@ export function createHlsProducer(schedule) {
       });
       child.on('close', (code) => {
         currentChild = null;
-        nextStartNumber = Math.max(nextStartNumber, countSegments());
+        bumpStartNumber();
         playlistReady = fs.existsSync(path.join(HLS_DIR, 'live.m3u8'));
         if (aborted || code === 0 || code === 255 || code === null) {
           resolve({ code, stderr });
@@ -173,8 +189,8 @@ export function createHlsProducer(schedule) {
   }
 
   /**
-   * TRANSITION: acrossfade remaining window between from/to.
-   * fromSeek = play end (fadeSec of outgoing audio left); toSeek = start of next.
+   * TRANSITION: undeniable equal-power amix fade for full remaining window.
+   * acrossfade as secondary fallback only when amix produces no new segments.
    */
   async function encodeTransition(seg) {
     const fadeTotal = seg.fadeSec || TRANSITION_SEC;
@@ -185,7 +201,7 @@ export function createHlsProducer(schedule) {
     let fromSeek = Math.max(0, seg.fromSeekSec ?? 0);
     let toSeek = Math.max(0, seg.toSeekSec ?? 0);
 
-    // Guarantee fadeSec (remaining) of outgoing samples — never start at EOF
+    // Guarantee remaining of outgoing samples — never start at EOF
     if (typeof fileDur === 'number' && fileDur > 0) {
       const maxSeek = Math.max(0, fileDur - remaining);
       if (fromSeek > maxSeek) {
@@ -196,44 +212,19 @@ export function createHlsProducer(schedule) {
       }
     }
 
-    const need = remaining + 0.25;
+    // Exact remaining on both inputs → blend length matches schedule (no overrun).
+    const need = remaining;
 
-    const acrossfadeFilter = `[0:a][1:a]acrossfade=d=${remaining}:c1=tri:c2=tri[aout]`;
-    const amixFilter = `[0:a]afade=t=out:st=0:d=${remaining}[a0];[1:a]afade=t=in:st=0:d=${remaining}[a1];[a0][a1]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
+    // Equal-power-ish curves (qsin) + normalize=0 so both decks stay audible in the middle.
+    const amixFilter =
+      `[0:a]afade=t=out:st=0:d=${need}:curve=qsin[a0];` +
+      `[1:a]afade=t=in:st=0:d=${need}:curve=qsin[a1];` +
+      `[a0][a1]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]`;
 
-    const tryAcross = [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-re',
-      '-ss',
-      String(fromSeek),
-      '-t',
-      String(need),
-      '-i',
-      seg.fromPath,
-      '-ss',
-      String(toSeek),
-      '-t',
-      String(need),
-      '-i',
-      seg.toPath,
-      '-filter_complex',
-      acrossfadeFilter,
-      '-map',
-      '[aout]',
-      ...hlsOutputArgs(),
-    ];
+    const acrossfadeFilter = `[0:a][1:a]acrossfade=d=${need}:c1=tri:c2=tri[aout]`;
 
-    const before = countSegments();
-    await spawnTracked(
-      tryAcross,
-      `TRANSITION acrossfade ${remaining.toFixed(1)}s/${fadeTotal.toFixed(0)}s (${seg.fromTrack?.title} → ${seg.toTrack?.title}) from@${fromSeek.toFixed(1)}`,
-    );
-
-    if (countSegments() <= before && !aborted) {
-      console.warn('[live/ffmpeg] acrossfade produced no new segments — trying amix fade');
-      const fallback = [
+    function dualInputArgs(filter) {
+      return [
         '-hide_banner',
         '-loglevel',
         'error',
@@ -251,15 +242,33 @@ export function createHlsProducer(schedule) {
         '-i',
         seg.toPath,
         '-filter_complex',
-        amixFilter,
+        filter,
         '-map',
         '[aout]',
         ...hlsOutputArgs(),
       ];
-      await spawnTracked(fallback, `TRANSITION amix-fade ${remaining.toFixed(1)}s`);
     }
 
-    void progress;
+    const beforeNum = maxSegmentNumber();
+    await spawnTracked(
+      dualInputArgs(amixFilter),
+      `TRANSITION amix-eq ${remaining.toFixed(1)}s/${fadeTotal.toFixed(0)}s (${seg.fromTrack?.title} → ${seg.toTrack?.title}) from@${fromSeek.toFixed(1)} to@${toSeek.toFixed(1)} p0=${progress.toFixed(2)}`,
+    );
+
+    if (maxSegmentNumber() <= beforeNum && !aborted) {
+      console.warn('[live/ffmpeg] amix produced no new segments — trying acrossfade');
+      await spawnTracked(
+        dualInputArgs(acrossfadeFilter),
+        `TRANSITION acrossfade-fallback ${remaining.toFixed(1)}s`,
+      );
+    }
+
+    if (maxSegmentNumber() <= beforeNum && !aborted) {
+      console.error(
+        '[live/ffmpeg] TRANSITION produced no segments — audio may hard-cut; check paths/seeks',
+      );
+    }
+
     void MIN_FADE_SEC;
   }
 
@@ -273,16 +282,34 @@ export function createHlsProducer(schedule) {
           await sleep(500);
           continue;
         }
+
+        // Deduplicate: if we already encoded this exact remaining slice key, wait for next.
+        const key = `${seg.kind}:${seg.absIndex}:${Math.floor(seg.startMs / 1000)}`;
+        if (key === lastEncodedKey) {
+          await sleep(200);
+          continue;
+        }
+
         const waitMs = seg.startMs - Date.now();
         if (waitMs > 50) {
           await sleep(Math.min(waitMs, 2000));
           continue;
         }
+
+        // If we are late into a segment, upcomingSegments already returns remaining duration.
+        // Log lag so we can see producer/SSE skew.
+        if (waitMs < -1500) {
+          console.warn(
+            `[live/ffmpeg] producer lag ${(-waitMs / 1000).toFixed(1)}s into ${seg.kind} #${seg.absIndex} — encoding remaining ${seg.durationSec.toFixed(1)}s`,
+          );
+        }
+
         if (seg.kind === 'PLAYING') {
           await encodePlaying(seg);
         } else {
           await encodeTransition(seg);
         }
+        lastEncodedKey = key;
       } catch (err) {
         console.error('[live/ffmpeg] loop error', err);
         await sleep(1000);
@@ -302,6 +329,7 @@ export function createHlsProducer(schedule) {
       clearHls();
       nextStartNumber = 0;
       playlistReady = false;
+      lastEncodedKey = null;
       fs.writeFileSync(
         path.join(HLS_DIR, 'live.m3u8'),
         '#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:EVENT\n',
@@ -338,5 +366,4 @@ export function assertFfmpeg() {
   });
 }
 
-// silence unused in case tree-shaken analysis
 void runFfmpeg;

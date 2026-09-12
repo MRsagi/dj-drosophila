@@ -50,7 +50,8 @@ North star: **“Hey, I trained a fruit fly to DJ — this is its set.”** Ever
 
 - PLAYING encodes from seek for the mind’s play window **once** (loops only if the file is shorter than the window).
 - TRANSITION `fromSeek` = play end (with `fadeSec` of audio left); `toSeek` = start of next (or mid-join).
-- Preferred filter: `acrossfade`; fallback `afade` + `amix`.
+- Preferred filter: equal-power `afade` + `amix` for the full `fadeSec`; `acrossfade` fallback.
+- HLS `-start_number` advances by **max segment index + 1** (never by file count — `delete_segments` would rewind otherwise).
 
 ### HUD
 

@@ -83,6 +83,13 @@
                 <b id="skip-read">GF idle</b>
               </div>
             </div>
+            <div class="club-audio-controls">
+              <button type="button" id="btn-live-mute" class="mute-btn" aria-pressed="false" title="Mute shared stream (only you)">
+                <span class="mute-icon" aria-hidden="true">🔊</span>
+                <span class="mute-label">Mute</span>
+              </button>
+              <span class="tiny mute-hint">client-only · does not change the radio for others</span>
+            </div>
             <div class="deck-now">
               <div class="deck-card a compact">
                 <header><span class="deck-id">A</span><span class="deck-name" id="name-a">—</span></header>
@@ -349,6 +356,10 @@
           A wiring diagram walks into a club — and stays on the decks.
         </p>
         <button type="button" id="engage" class="primary huge">Enter the club</button>
+        <button type="button" id="btn-live-mute-gate" class="mute-btn gate-mute" aria-pressed="false" title="Mute shared stream (only you)">
+          <span class="mute-icon" aria-hidden="true">🔊</span>
+          <span class="mute-label">Mute</span>
+        </button>
         <p class="tiny">
           Browsers require a click before Web Audio. Fruit flies require neither a click
           nor this sentence. Bundled unsupervised model auto-loads.

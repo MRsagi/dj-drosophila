@@ -70,6 +70,8 @@ async function ensureFlyDJ() {
 
 const gate = document.getElementById('gate');
 const engage = document.getElementById('engage');
+const btnLiveMute = document.getElementById('btn-live-mute');
+const btnLiveMuteGate = document.getElementById('btn-live-mute-gate');
 const btnStart = document.getElementById('btn-start');
 const btnStop = document.getElementById('btn-stop');
 const btnDemo = document.getElementById('btn-demo');
@@ -377,6 +379,62 @@ async function handleSkipAdvance(fromSide) {
   }
 }
 
+
+function syncMuteButtons(muted) {
+  for (const btn of [btnLiveMute, btnLiveMuteGate]) {
+    if (!btn) continue;
+    btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    const icon = btn.querySelector('.mute-icon');
+    const label = btn.querySelector('.mute-label');
+    if (icon) icon.textContent = muted ? '🔇' : '🔊';
+    if (label) label.textContent = muted ? 'Unmute' : 'Mute';
+    btn.title = muted
+      ? 'Unmute shared stream (only you)'
+      : 'Mute shared stream (only you)';
+  }
+}
+
+function wireMuteButtons() {
+  const handler = (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    // Prefer liveClient when present; otherwise stash preference for first start
+    if (liveClient) {
+      const muted = liveClient.toggleMute();
+      syncMuteButtons(muted);
+      return;
+    }
+    let muted = false;
+    try {
+      muted = localStorage.getItem('dj-drosophila:liveMuted') === '1';
+    } catch {
+      muted = false;
+    }
+    muted = !muted;
+    try {
+      localStorage.setItem('dj-drosophila:liveMuted', muted ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+    syncMuteButtons(muted);
+  };
+  for (const btn of [btnLiveMute, btnLiveMuteGate]) {
+    if (btn && !btn.dataset.muteWired) {
+      btn.dataset.muteWired = '1';
+      btn.addEventListener('click', handler);
+    }
+  }
+  // Initial paint from localStorage
+  let muted = false;
+  try {
+    muted = localStorage.getItem('dj-drosophila:liveMuted') === '1';
+  } catch {
+    muted = false;
+  }
+  syncMuteButtons(muted);
+}
+
+wireMuteButtons();
 engage.addEventListener('click', async () => {
   gate.classList.add('hidden');
   if (location.hash !== '#lab' && location.hash !== '#story') {
@@ -602,7 +660,18 @@ async function initSharedLiveMode() {
           ].join(' · ');
         }
       },
+      onMuteChange(m) {
+        syncMuteButtons(m);
+      },
     });
+    // Apply persisted mute preference to the shared <audio> element
+    try {
+      const preferMute = localStorage.getItem('dj-drosophila:liveMuted') === '1';
+      liveClient.setMuted(preferMute);
+      syncMuteButtons(preferMute);
+    } catch {
+      syncMuteButtons(!!liveClient.muted);
+    }
   }
   console.info(
     '[live] shared stream ready — clients are read-only (no skip/control of the radio)',

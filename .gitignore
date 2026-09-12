@@ -5,3 +5,5 @@ server/hls/
 .env
 .DS_Store
 server/cache/show-log.json
+scripts/out/
+server/cache/crossfade-validation-*.jsonl

@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "train:offline": "node scripts/train-offline.mjs",
     "live": "node server/index.js",
-    "live:build": "vite build && node server/index.js"
+    "live:build": "vite build && node server/index.js",
+    "validate:crossfade": "node scripts/validate-live-crossfade.mjs"
   },
   "devDependencies": {
     "vite": "^6.3.5"

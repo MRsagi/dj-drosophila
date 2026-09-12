@@ -573,3 +573,36 @@ input[type="range"] { width: 100%; accent-color: var(--gold); }
   .hero-line { font-size: 1.15rem; }
   .fly-caption { font-size: 9.5px; left: 0.6rem; bottom: 0.6rem; }
 }
+
+
+.club-audio-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+  margin: 0.65rem 0 0.35rem;
+  padding: 0 0.2rem;
+}
+.mute-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid #2a3344;
+  background: #121820;
+  color: var(--phosphor, #7dff9a);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.mute-btn:hover { border-color: var(--gold, #e0b44a); }
+.mute-btn[aria-pressed="true"] {
+  background: #2a1520;
+  border-color: #ff4d8d;
+  color: #ffb3c9;
+}
+.mute-btn .mute-icon { font-size: 14px; line-height: 1; }
+.mute-hint { margin: 0; }
+.gate-mute { margin-top: 0.65rem; }

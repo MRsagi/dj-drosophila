@@ -5,6 +5,8 @@
 
 import Hls from 'hls.js';
 
+const LIVE_MUTE_KEY = 'dj-drosophila:liveMuted';
+
 /**
  * @returns {boolean} true when URL forces live (?live=1) or disables (?live=0)
  */
@@ -50,16 +52,33 @@ export function createLiveClient(opts = {}) {
   /** @type {Hls|null} */
   let hls = null;
   let started = false;
+  let muted = false;
+  try {
+    muted = localStorage.getItem(LIVE_MUTE_KEY) === '1';
+  } catch {
+    muted = false;
+  }
   const onState = opts.onState || (() => {});
+  /** @type {(muted: boolean) => void} */
+  let onMuteChange = opts.onMuteChange || (() => {});
+
+  function applyMuteToEl(el) {
+    if (!el) return;
+    el.muted = muted;
+  }
 
   function ensureAudio() {
-    if (audio) return audio;
+    if (audio) {
+      applyMuteToEl(audio);
+      return audio;
+    }
     audio = document.createElement('audio');
     audio.id = 'live-shared-audio';
     audio.crossOrigin = 'anonymous';
     audio.playsInline = true;
     audio.preload = 'auto';
     audio.style.display = 'none';
+    applyMuteToEl(audio);
     document.body.appendChild(audio);
     return audio;
   }
@@ -163,6 +182,7 @@ export function createLiveClient(opts = {}) {
       }
       attachHls(url);
       const el = ensureAudio();
+      applyMuteToEl(el);
       try {
         await el.play();
       } catch (err) {
@@ -188,6 +208,30 @@ export function createLiveClient(opts = {}) {
           /* ignore */
         }
       }
+    },
+    get muted() {
+      return muted;
+    },
+    /**
+     * Client-only mute of the shared <audio> element. Does not affect other listeners.
+     * @param {boolean} [next]
+     */
+    setMuted(next = !muted) {
+      muted = !!next;
+      try {
+        localStorage.setItem(LIVE_MUTE_KEY, muted ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      applyMuteToEl(ensureAudio());
+      onMuteChange(muted);
+      return muted;
+    },
+    toggleMute() {
+      return this.setMuted(!muted);
+    },
+    onMuteChange(cb) {
+      onMuteChange = cb || (() => {});
     },
     /**
      * Snapshot shaped like setEngine HUD for FlyDJ / hud.update

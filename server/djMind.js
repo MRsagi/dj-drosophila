@@ -139,6 +139,96 @@ export function mustLeaveBy(fileDur, fadeSec) {
 /**
  * Choose crossfade length (policy, not a constant).
  */
+
+/**
+ * Leave-quality reward for mind shaping (not a separate RL loop — folded into leaveScore).
+ * Positive: phrase-aligned leave with fadeSec in sweet spot and room before EOF.
+ * Negative: too early (< min+cushion), too late (must-leave / near EOF without planning fade),
+ *           or "reward" of playing to 100% of file (explicitly penalized).
+ *
+ * @returns {{ reward: number, notes: string[] }}
+ */
+export function leaveQualityReward({
+  playedSec,
+  fileDur,
+  fadeSec,
+  minPlay,
+  deadline,
+  phrase,
+  style,
+}) {
+  const notes = [];
+  let reward = 0;
+  const dur = fileDur || 120;
+  const fade = fadeSec ?? 16;
+  const minP = minPlay ?? minPlayForTrack(dur);
+  const dl = deadline ?? mustLeaveBy(dur, fade);
+  const cushion = minP + 18;
+
+  // --- Penalties ---
+  if (playedSec < minP) {
+    reward -= 0.55;
+    notes.push('too-early(<min)');
+  } else if (playedSec < cushion) {
+    reward -= 0.22;
+    notes.push('too-early(<cushion)');
+  }
+
+  // Playing to ~100% of file is never rewarded
+  if (playedSec >= dur - 1) {
+    reward -= 0.7;
+    notes.push('played-to-eof');
+  } else if (playedSec >= dur - fade) {
+    // Left so late the fade would overrun EOF without clamp
+    reward -= 0.35;
+    notes.push('fade-overruns-eof');
+  }
+
+  // Must-leave panic: at/past deadline without having planned earlier
+  if (playedSec >= dl) {
+    reward -= 0.4;
+    notes.push('must-leave-late');
+  } else if (playedSec >= dl - 4) {
+    reward -= 0.12;
+    notes.push('near-must-leave');
+  }
+
+  // --- Rewards ---
+  // Sweet-spot fade length (12–28s)
+  if (fade >= 12 && fade <= 28) {
+    reward += 0.28;
+    notes.push('fade-sweet');
+  } else if (fade >= MIN_FADE_SEC && fade <= MAX_FADE_SEC) {
+    reward += 0.08;
+    notes.push('fade-ok');
+  }
+
+  // Room before EOF: leaveAt ≤ duration - fadeSec - 1
+  const room = dur - playedSec - fade;
+  if (room >= 1) {
+    reward += 0.25;
+    notes.push('eof-room');
+  } else if (room >= 0) {
+    reward += 0.05;
+    notes.push('eof-tight');
+  }
+
+  // Phrase alignment
+  if (phrase?.gateAllow) {
+    reward += 0.2 + (phrase.proximity || 0) * 0.15;
+    notes.push('phrase-aligned');
+  }
+
+  // Patience: left after cushion but well before deadline (good DJ timing)
+  if (playedSec >= cushion && playedSec < dl - 8) {
+    reward += 0.15;
+    notes.push('patient-leave');
+  }
+
+  void style;
+  return { reward: clamp(reward, -1, 1), notes };
+}
+
 export function chooseFadeSec({ style, track, next, fileDur, rng }) {
   const st = style || getStyle('psy-peak');
   const maxF = maxFadeForTrack(fileDur);
@@ -257,6 +347,18 @@ export function mindTick(opts) {
   // Novelty of next
   leaveScore += clamp(nextScore - 0.3, 0, 0.4);
 
+  // Leave-quality shaping: prefer phrase + sweet fade + EOF room; punish early/late/EOF
+  const quality = leaveQualityReward({
+    playedSec,
+    fileDur,
+    fadeSec,
+    minPlay,
+    deadline,
+    phrase,
+    style,
+  });
+  leaveScore += quality.reward * 0.35;
+
   // Hard constraints
   if (playedSec < minPlay) {
     const barsLeft = Math.max(1, Math.ceil((minPlay - playedSec) / (4 * 60 / (track.bpm || 124))));
@@ -274,13 +376,24 @@ export function mindTick(opts) {
     fadeSec = chooseFadeSec({ style, track, next, fileDur, rng: mulberry32(hashStr(`${seed}:fadeEOF:${opts.absIndex}`)) });
     fadeSec = Math.min(fadeSec, Math.max(MIN_FADE_SEC, fileDur - playedSec - 0.5));
     fadeSec = clamp(fadeSec, MIN_FADE_SEC, maxFadeForTrack(fileDur));
+    const qLate = leaveQualityReward({
+      playedSec,
+      fileDur,
+      fadeSec,
+      minPlay,
+      deadline,
+      phrase,
+      style,
+    });
     return {
       shouldTransition: true,
       fadeSec,
       nextTrack: next,
       reason: `ommatidia hit the run-out groove · escape circuit wants a ${fadeSec.toFixed(0)}s blend`,
-      leaveScore: 1,
+      // Cap: must-leave still forces transition, but score is not a "reward" for EOF play
+      leaveScore: clamp(0.55 + qLate.reward * 0.2, 0.35, 0.85),
       gateAllow: true,
+      qualityNotes: qLate.notes,
     };
   }
 
@@ -301,6 +414,21 @@ export function mindTick(opts) {
       fileDur,
       rng: mulberry32(hashStr(`${seed}:fade:${opts.absIndex}:${tick}`)),
     });
+    // Re-score quality with the chosen fade; require eof room when possible
+    const qGo = leaveQualityReward({
+      playedSec,
+      fileDur,
+      fadeSec,
+      minPlay,
+      deadline: mustLeaveBy(fileDur, fadeSec),
+      phrase,
+      style,
+    });
+    leaveScore += qGo.reward * 0.15;
+    // If fade would overrun, shrink toward sweet spot that still fits
+    if (fileDur - playedSec - fadeSec < 1) {
+      fadeSec = clamp(fileDur - playedSec - 1, MIN_FADE_SEC, maxFadeForTrack(fileDur));
+    }
     const bars = Math.max(1, Math.round(fadeSec / (4 * 60 / (track.bpm || 124))));
     let gag;
     if (crashing) {
