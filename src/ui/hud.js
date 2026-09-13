@@ -216,13 +216,13 @@ export function createHud() {
 
       let status;
       if (!running) {
-        status = 'Eyes dark. Circuit gated. Enter the club.';
+        status = 'Standby.';
       } else if (policyReason) {
         status = policyReason;
       } else if (sharedLive) {
-        status = 'Shared live — the fly’s set.';
+        status = 'Live.';
       } else {
-        status = `Live mix · ${side}`;
+        status = side;
       }
       setText(els.club, status);
 
@@ -231,7 +231,7 @@ export function createHud() {
           els.setStatus,
           running
             ? `${setStatus || setState || '—'} · ${setEdgeLabel || side}`
-            : 'set engine idle',
+            : '—',
         );
       }
       if (els.nextTrack) {
@@ -249,18 +249,18 @@ export function createHud() {
         let pill;
         if (sharedLive) {
           pill = !running
-            ? 'LIVE · SHARED STREAM'
+            ? 'STANDBY'
             : setState === 'TRANSITION'
-              ? 'LIVE · TRANSITION'
-              : 'LIVE · SHARED STREAM';
+              ? 'LIVE · BLEND'
+              : 'LIVE';
         } else if (!running) {
-          pill = 'circuit gated';
+          pill = 'STANDBY';
         } else if (setState === 'TRANSITION') {
-          pill = 'TRANSITION';
+          pill = 'BLEND';
         } else if (setState === 'PLAYING') {
-          pill = 'PLAYING · edge-lock';
+          pill = 'PLAYING';
         } else {
-          pill = 'LOCAL LAB MIX';
+          pill = 'LIVE';
         }
         els.livePill.textContent = pill;
         els.livePill.classList.toggle('on', !!running || !!sharedLive);
@@ -277,8 +277,10 @@ export function createHud() {
         setText(
           els.xfRead,
           edgeParked
-            ? `xf ${fmt(xfader, 2)} · ${setEdgeLabel || side} locked${fxStr}`
-            : `xf ${fmt(xfader, 2)} · ${setState === 'TRANSITION' ? `TRANSITION ${Math.round((transitionProgress || 0) * 100)}%` : side}${fxStr}`,
+            ? `${setEdgeLabel || side}`
+            : setState === 'TRANSITION'
+              ? `blend ${Math.round((transitionProgress || 0) * 100)}%`
+              : `${side}${fxStr}`,
         );
       } else {
         const aStr = policyAlpha != null ? ` · α ${fmt(policyAlpha, 2)}` : '';
@@ -294,27 +296,21 @@ export function createHud() {
         els.volBar.style.width = `${Math.round(volume * 100)}%`;
         els.volBar.style.left = '0';
       }
-      setText(els.volRead, `${fmt(volume * 100, 0)}% · mean DN ${fmt(meanRate)} Hz`);
+      setText(els.volRead, `${fmt(volume * 100, 0)}%`);
 
       const firedAgo = now - lastSkipAt;
       if (skipEvent || firedAgo < 0.8) {
-        setText(els.skip, `SKIP · dumped ${lastSkipFrom} · comic sweep`);
+        setText(els.skip, `SKIP ${lastSkipFrom}`);
         document.body.classList.add('skip-flash');
       } else {
         const novStr = novelty != null ? ` · nov ${fmt(novelty, 2)}` : '';
         if (setState === 'PLAYING') {
-          setText(
-            els.skip,
-            `long play · ${setTimeStr || '—'} · gate ${gateAllow ? 'OPEN' : 'shut'} · score ${fmt(skipScore ?? 0, 2)}${novStr}`,
-          );
+          setText(els.skip, setTimeStr || '—');
         } else {
-          setText(
-            els.skip,
-            gateAllow
-              ? `GF idle · gate open · score ${fmt(skipScore ?? 0, 2)}${novStr}`
-              : `GF idle · gate closed · score ${fmt(skipScore ?? 0, 2)}${novStr}`,
-          );
+          setText(els.skip, '—');
         }
+        void novStr;
+        void skipScore;
         document.body.classList.remove('skip-flash');
       }
 
@@ -326,7 +322,7 @@ export function createHud() {
       setText(els.reason, policyReason || '—');
       if (els.clubReason) {
         // Club lede already shows the mind reason — this line is the motor readout.
-        const loc = `DN-L ${fmt(dnL?.rate ?? 0)} Hz · DN-R ${fmt(dnR?.rate ?? 0)} Hz · GF ${fmt(gf?.rate ?? 0)} Hz · toy CPG`;
+        const loc = `DN-L ${fmt(dnL?.rate ?? 0)} Hz · DN-R ${fmt(dnR?.rate ?? 0)} Hz · GF ${fmt(gf?.rate ?? 0)} Hz`;
         setText(els.clubReason, loc);
       }
       if (els.bpmRead && bpm != null) els.bpmRead.textContent = `${fmt(bpm, 0)} BPM`;

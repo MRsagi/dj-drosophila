@@ -366,7 +366,7 @@ export function mindTick(opts) {
       shouldTransition: false,
       fadeSec,
       nextTrack: next,
-      reason: `DN-L parked on the edge · warming up ${playedSec.toFixed(0)}/${minPlay.toFixed(0)}s (~${barsLeft} bars)`,
+      reason: `hold · ${playedSec.toFixed(0)}/${minPlay.toFixed(0)}s (~${barsLeft} bars)`,
       leaveScore,
       gateAllow: phrase.gateAllow,
     };
@@ -389,7 +389,7 @@ export function mindTick(opts) {
       shouldTransition: true,
       fadeSec,
       nextTrack: next,
-      reason: `ommatidia hit the run-out groove · escape circuit wants a ${fadeSec.toFixed(0)}s blend`,
+      reason: `must leave · ${fadeSec.toFixed(0)}s blend`,
       // Cap: must-leave still forces transition, but score is not a "reward" for EOF play
       leaveScore: clamp(0.55 + qLate.reward * 0.2, 0.35, 0.85),
       gateAllow: true,
@@ -430,23 +430,23 @@ export function mindTick(opts) {
       fadeSec = clamp(fileDur - playedSec - 1, MIN_FADE_SEC, maxFadeForTrack(fileDur));
     }
     const bars = Math.max(1, Math.round(fadeSec / (4 * 60 / (track.bpm || 124))));
-    let gag;
+    let reason;
     if (crashing) {
-      gag = `DNa02 bias → energy crash · leave in ~${bars} bars`;
+      reason = `crash · ~${bars} bars`;
     } else if (rising && energyGap > 0.08) {
-      gag = `DN-R hears a hotter bed · novelty spike → ${fadeSec.toFixed(0)}s fade`;
+      reason = `novelty · ${fadeSec.toFixed(0)}s fade`;
     } else if (phrase.proximity > 0.5) {
-      gag = `phrase boundary tickles GF · ${fadeSec.toFixed(0)}s blend into ${next?.title || 'next'}`;
+      reason = `phrase · ${fadeSec.toFixed(0)}s → ${next?.title || 'next'}`;
     } else if (leaveScore >= style.leaveThresh) {
-      gag = `policy mind itchy · escape circuit wants a ${fadeSec.toFixed(0)}s blend`;
+      reason = `GF · ${fadeSec.toFixed(0)}s blend`;
     } else {
-      gag = `long-play patience spent · ${fadeSec.toFixed(0)}s crossfade → ${next?.title || 'next'}`;
+      reason = `patience · ${fadeSec.toFixed(0)}s → ${next?.title || 'next'}`;
     }
     return {
       shouldTransition: true,
       fadeSec,
       nextTrack: next,
-      reason: gag,
+      reason,
       leaveScore,
       gateAllow: phrase.gateAllow,
     };
@@ -457,7 +457,7 @@ export function mindTick(opts) {
       shouldTransition: false,
       fadeSec,
       nextTrack: next,
-      reason: `GF gated · Δ${phrase.distBeats.toFixed(1)} beats from phrase · xf glued to edge`,
+      reason: `phrase gate · Δ${phrase.distBeats.toFixed(1)} beats`,
       leaveScore,
       gateAllow: phrase.gateAllow,
     };
@@ -467,7 +467,7 @@ export function mindTick(opts) {
       shouldTransition: false,
       fadeSec,
       nextTrack: next,
-      reason: `fly still digging this groove · edge-lock ${playedSec.toFixed(0)}s`,
+      reason: `edge · ${playedSec.toFixed(0)}s`,
       leaveScore,
       gateAllow: phrase.gateAllow,
     };
@@ -476,7 +476,7 @@ export function mindTick(opts) {
     shouldTransition: false,
     fadeSec,
     nextTrack: next,
-    reason: `MaleCNS lean held · score ${leaveScore.toFixed(2)} (need ${style.leaveThresh}) · ${playedSec.toFixed(0)}s in`,
+    reason: `hold · ${playedSec.toFixed(0)}s · ${leaveScore.toFixed(2)}/${style.leaveThresh}`,
     leaveScore,
     gateAllow: phrase.gateAllow,
   };
@@ -514,7 +514,7 @@ export function decideLeave(opts) {
         playedSec: Math.max(minPlay, fileDur - fadeSec - 1),
         fadeSec,
         nextTrack: last?.nextTrack || opts.candidates?.[0],
-        reason: `wiring diagram bailout · ${fadeSec.toFixed(0)}s escape blend`,
+        reason: `eof · ${fadeSec.toFixed(0)}s blend`,
         leaveScore: 1,
       };
     }
@@ -524,7 +524,7 @@ export function decideLeave(opts) {
     playedSec: Math.max(minPlay, fileDur - fadeSec - 1),
     fadeSec,
     nextTrack: last?.nextTrack || opts.candidates?.[0],
-    reason: last?.reason || 'fallback · fly shrugs · blend',
+    reason: last?.reason || 'eof blend',
     leaveScore: 1,
   };
 }

@@ -52,9 +52,7 @@ function syncMuteButtons(muted) {
     const label = btn.querySelector('.mute-label');
     if (icon) icon.textContent = muted ? '🔇' : '🔊';
     if (label) label.textContent = muted ? 'Unmute' : 'Mute';
-    btn.title = muted
-      ? 'Unmute shared stream (only you)'
-      : 'Mute shared stream (only you)';
+    btn.title = muted ? 'Unmute' : 'Mute';
   }
 }
 
@@ -120,7 +118,7 @@ function attachLiveClient() {
         attrLines.textContent = [
           `${s.trackA.title} — ${s.trackA.artist} (CC0)`,
           `${s.trackB.title} — ${s.trackB.artist} (CC0)`,
-          'SHARED LIVE STREAM · read-only · all visitors hear the same show',
+          'same stream for everyone',
         ].join(' · ');
       }
     },
@@ -168,7 +166,7 @@ engage.addEventListener('click', async () => {
     const status = document.getElementById('club-status');
     if (status) {
       status.textContent =
-        'Shared live server unreachable. This club is read-only shared radio.';
+        'Radio offline.';
     }
     return;
   }
@@ -203,4 +201,4 @@ function loop(ts) {
 
 requestAnimationFrame(loop);
 
-console.info('[dj-drosophila] club · shared live only · see docs/LIVE.md');
+console.info('[dj-drosophila] club');

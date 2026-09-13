@@ -6,7 +6,7 @@ describe('fly FX from toy DNs', () => {
   it('maps DN-R > DN-L toward lowpass (B-side / ipsilateral-right gag)', () => {
     const d = flyFxFromCircuit({ dnLRate: 4, dnRRate: 22, bass: 0.2, hi: 0.2 });
     assert.ok(d.filter > 0.3, `filter ${d.filter}`);
-    assert.match(d.reason, /^FLY ·/);
+    assert.match(d.reason, /^DNΔ /);
   });
 
   it('maps DN-L > DN-R toward highpass', () => {

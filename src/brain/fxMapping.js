@@ -63,7 +63,7 @@ export function flyFxFromCircuit(s) {
   }
 
   const fLabel = Math.abs(filter) < 0.05 ? 'open' : filter < 0 ? 'HP' : 'LP';
-  const reason = `FLY · DNΔ ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} → ${fLabel} · vigor ${mean.toFixed(0)} Hz`;
+  const reason = `DNΔ ${diff >= 0 ? '+' : ''}${diff.toFixed(2)} · ${fLabel} · ${mean.toFixed(0)} Hz`;
 
   return { filter, echo, pitch, loop, loopBeats, loopHold, mean, diff, reason };
 }

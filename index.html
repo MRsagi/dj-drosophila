@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DJ Drosophila — MaleCNS mixer (approx)</title>
+    <title>DJ Drosophila</title>
     <meta
       name="description"
-      content="Hey, I trained a fruit fly to DJ — this is its set. Shared 24/7 live radio: MaleCNS wiring proxies + a policy mind. Scientific comedy — not a conscious animal. CC0 crate."
+      content="24/7 radio. One stream. A fruit fly on the decks. CC0 crate."
     />
     <meta name="theme-color" content="#07080b" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -24,14 +24,12 @@
           <span class="brand-mark" aria-hidden="true">◉</span>
           <div>
             <h1>DJ Drosophila</h1>
-            <p class="tag">
-              A wiring diagram walks into a club. The wiring diagram does not understand the joke.
-            </p>
+            <p class="tag">24/7 radio · one stream</p>
           </div>
         </div>
         <nav class="main-nav" aria-label="Primary">
           <a href="#club" data-nav="club">Club</a>
-          <a href="#story" data-nav="story">Story</a>
+          <a href="#story" data-nav="story">How</a>
         </nav>
         <div class="top-meta">
           <span class="pill">dataset <strong>male-cns:v1.0</strong></span>
@@ -44,27 +42,25 @@
       <section class="view view-club" data-route-view="club" id="view-club">
         <div class="club-hero">
           <div class="club-hero-copy">
-            <p class="kicker">24/7 shared live · the fly’s set · not Spotify</p>
-            <h2 class="hero-line">Hey, I trained a fruit fly to DJ — this is its set.</h2>
+            <p class="kicker">live</p>
+            <h2 class="hero-line">I trained a fruit fly to DJ. This is the set.</h2>
             <p class="hero-sub">
-              Everyone hears the <strong>same</strong> shared live stream: the fly’s mind picks when to leave a track
-              and how long to blend. Dual-eye viz · mixer HUD · CC0 crate. Fine print: MaleCNS wiring proxies + our
-              policy mind — not a conscious animal.
+              Same mix for everyone. It leaves when it leaves. CC0 crate.
             </p>
           </div>
-          <div class="club-live-pill" id="club-live-pill">circuit gated</div>
+          <div class="club-live-pill" id="club-live-pill">standby</div>
         </div>
 
         <div class="club-layout">
           <div class="fly-stage">
             <canvas id="fly-dj" width="960" height="540" aria-label="3D fruit fly DJ on decks"></canvas>
-            <div class="fly-caption">Toy CPG tripod gait · DN-L/R steer (DNa02-like proxy) · wings on energy · GF jump — not MANC motor neurons</div>
+            <div class="fly-caption">tripod gait · DN-L/R steer · wings · GF jump</div>
           </div>
 
           <aside class="club-hud panel">
-            <h2>Mixer HUD</h2>
-            <p class="lede" id="club-status">Eyes dark. Circuit gated. Enter the club.</p>
-            <p class="tiny set-line" id="set-status">set engine idle</p>
+            <h2>HUD</h2>
+            <p class="lede" id="club-status">Standby.</p>
+            <p class="tiny set-line" id="set-status">—</p>
             <p class="tiny set-next" id="set-next">Next: —</p>
             <div class="meters club-meters">
               <div class="meter">
@@ -79,18 +75,18 @@
               </div>
               <div class="meter">
                 <span>Skip</span>
-                <b id="skip-read">GF idle</b>
+                <b id="skip-read">—</b>
               </div>
             </div>
             <div class="club-audio-controls">
-              <button type="button" id="btn-live-mute" class="mute-btn" aria-pressed="false" title="Mute shared stream (only you)">
+              <button type="button" id="btn-live-mute" class="mute-btn" aria-pressed="false" title="Mute (you only)">
                 <span class="mute-icon" aria-hidden="true">🔊</span>
                 <span class="mute-label">Mute</span>
               </button>
-              <span class="tiny mute-hint">client-only · does not change the radio for others</span>
+              <span class="tiny mute-hint">your speakers</span>
             </div>
             <div class="booth-fx" id="booth-fx" aria-live="polite">
-              <h3 class="policy-title">Booth FX <span class="tiny booth-fly-tag">fly only</span></h3>
+              <h3 class="policy-title">Booth FX <span class="tiny booth-fly-tag">fly</span></h3>
               <div class="booth-row">
                 <span>Filter</span>
                 <div class="bar booth-bar"><i id="fx-filter-bar"></i></div>
@@ -111,20 +107,20 @@
                 <div class="bar booth-bar"><i id="fx-pitch-bar"></i></div>
                 <b id="fx-pitch-read">124 BPM</b>
               </div>
-              <p class="tiny booth-hint" id="fx-fly-reason">FLY · waiting for circuit</p>
+              <p class="tiny booth-hint" id="fx-fly-reason">—</p>
             </div>
             <div class="deck-now">
               <div class="deck-card a compact">
                 <header><span class="deck-id">A</span><span class="deck-name" id="name-a">—</span></header>
-                <p class="tiny" id="info-a">crate loading…</p>
+                <p class="tiny" id="info-a">—</p>
               </div>
               <div class="deck-card b compact">
                 <header><span class="deck-id">B</span><span class="deck-name" id="name-b">—</span></header>
-                <p class="tiny" id="info-b">crate loading…</p>
+                <p class="tiny" id="info-b">—</p>
               </div>
             </div>
             <div class="eye-hud">
-              <h3 class="policy-title">Dual-eye viz</h3>
+              <h3 class="policy-title">Eyes</h3>
               <canvas id="eyes" width="640" height="220" aria-label="Dual compound-eye song visualizer"></canvas>
             </div>
             <p class="tiny" id="club-policy-reason">—</p>
@@ -132,76 +128,44 @@
         </div>
 
         <footer class="attr-footer" id="attr-footer">
-          <strong>Music attribution</strong>
-          <p id="attr-lines">CC0 OpenGameArt crate · see LICENSES.md</p>
+          <strong>Crate</strong>
+          <p id="attr-lines">CC0 · OpenGameArt</p>
         </footer>
       </section>
 
       <!-- ========== STORY ========== -->
       <section class="view view-story" data-route-view="story" id="view-story" hidden>
         <article class="story-card">
-          <p class="kicker">how training works · honest edition</p>
-          <h2>Hey, I trained a fruit fly to DJ</h2>
+          <p class="kicker">pipeline</p>
+          <h2>I trained a fruit fly to DJ</h2>
           <p class="lede story-lede">
-            That’s the gag — and the product. The shared live club <em>is</em> its set: 24/7, same stream for everyone,
-            mind deciding when to leave a track and how long to crossfade. Under the hood this is scientific comedy:
-            MaleCNS is a <em>wiring diagram</em> (CC BY). We use a few named <strong>actuator proxies</strong> plus a
-            separate <strong>DJ mind / unsupervised policy</strong> — not a conscious animal, not an upload,
-            not plasticity in the connectome.
+            One radio. One timeline. The mind on the server picks leave time and fade length.
+            MaleCNS names the toys. The toys are not the cells.
           </p>
 
-          <div class="story-gags">
-            <div class="gag">
-              <h3>Gag</h3>
-              <p>“I trained a fruit fly to DJ — this is its set.”</p>
-            </div>
-            <div class="gag truth">
-              <h3>Truth</h3>
-              <p>
-                Three LIF toys + a canvas + a server-side policy mind with a decision log. DN / GF labels are
-                <em>proxies</em>; the mind scores energy arcs, novelty, and phrase gates. Unsupervised bits learn
-                from mix features — not from a fly’s soul.
-              </p>
-            </div>
-          </div>
-
-          <h3>What actually runs</h3>
           <ol class="story-steps">
-            <li><strong>Sensors</strong> — song visualizer → approx R1–R6 / R8 eye columns (not ommatidia census).</li>
-            <li><strong>Actuators (MaleCNS-named proxies)</strong> — DN-L / DN-R / Giant Fiber LIF stubs lean the xfader, ride master, propose escapes. Proxies ≠ identified cells unless you verify in neuPrint.</li>
-            <li><strong>DJ mind (live radio)</strong> — chooses <em>when</em> to leave and <em>how long</em> to blend (≈8–32s); appends decisions to a show log so every listener shares the same set. Crossfader stays glued to an edge while PLAYING.</li>
-            <li><strong>Booth FX</strong> — the fly rides filter / echo / loop / pitch on your local copy; the encoder stays dry.</li>
-            <li><strong>Crate</strong> — CC0 OpenGameArt mp3s in <code>public/crate/</code>; procedural beds as fallback. Spotify is out.</li>
+            <li><strong>Eyes</strong> — spectrum into a lattice. R1–R6 / R8 as labels, not a census.</li>
+            <li><strong>DNs / GF</strong> — three LIF units. Lean, vigor, jump. Check neuPrint before quoting types.</li>
+            <li><strong>Leave mind</strong> — when to cut, how long to blend. Logged so every listener shares the same set.</li>
+            <li><strong>Booth</strong> — filter, echo, loop, pitch on your copy. Encoder stays dry.</li>
+            <li><strong>Crate</strong> — CC0 from OpenGameArt. Footer lists the records.</li>
           </ol>
-
-          <h3>Science fine print</h3>
-          <ul class="fine-list">
-            <li><strong>No consciousness.</strong> A LIF stub is not a mind — the “fly DJ” is comedy + engineering.</li>
-            <li><strong>No upload.</strong> We did not instantiate ~166k neurons.</li>
-            <li><strong>“Trained a fruit fly”</strong> means MaleCNS-named actuators + our policy mind / unsupervised head — not animal training.</li>
-            <li><strong>No artist cloning.</strong> Style lanes are genre heuristics.</li>
-            <li><strong>Do not cut flies for a nightclub.</strong> This is software.</li>
-          </ul>
 
           <h3>Credits</h3>
           <ul class="credits">
             <li>
               <strong>MaleCNS</strong> — FlyEM / HHMI Janelia, Cambridge Connectomics Group / MRC LMB,
-              Google Research · <strong>CC BY</strong> · dataset <code>male-cns:v1.0</code> ·
+              Google Research · CC BY · <code>male-cns:v1.0</code> ·
               <a href="https://neuprint.janelia.org" rel="noopener" target="_blank">neuprint.janelia.org</a>
             </li>
             <li>
-              <strong>Music</strong> — CC0 tracks from OpenGameArt in <code>public/crate/</code>;
-              see <code>LICENSES.md</code>. Attribution footer always visible on the Club page.
-            </li>
-            <li>
-              <strong>This toy</strong> — demo code in this repo. Keep the credit line if you show it.
+              <strong>Music</strong> — CC0, OpenGameArt. See <code>LICENSES.md</code>.
             </li>
           </ul>
 
           <p class="tiny">
-            Deeper notes: <a href="/docs/SCIENCE.md">docs/SCIENCE.md</a> (in repo) ·
-            <a href="#club">back to the club</a>.
+            <a href="/docs/SCIENCE.md">SCIENCE.md</a> ·
+            <a href="#club">club</a>
           </p>
         </article>
       </section>
@@ -213,24 +177,20 @@
 
     <div id="gate" class="gate">
       <div class="gate-card">
-        <p class="kicker">scientific comedy · not a paper · not Spotify</p>
+        <p class="kicker">live</p>
         <h1>DJ Drosophila</h1>
         <p class="manifesto">
-          Hey, I trained a fruit fly to DJ — this is its set.<br />
-          Shared 24/7 live radio. Consciousness not included.<br />
-          A wiring diagram walks into a club — and stays on the decks.
+          I trained a fruit fly to DJ.<br />
+          This is the set.
         </p>
-        <button type="button" id="engage" class="primary huge">Enter the club</button>
-        <button type="button" id="btn-live-mute-gate" class="mute-btn gate-mute" aria-pressed="false" title="Mute shared stream (only you)">
+        <button type="button" id="engage" class="primary huge">Enter</button>
+        <button type="button" id="btn-live-mute-gate" class="mute-btn gate-mute" aria-pressed="false" title="Mute (you only)">
           <span class="mute-icon" aria-hidden="true">🔊</span>
           <span class="mute-label">Mute</span>
         </button>
-        <p class="tiny">
-          Browsers require a click before Web Audio. Fruit flies require neither a click
-          nor this sentence.
-        </p>
+        <p class="tiny">Click once. Browsers.</p>
         <p class="gate-links tiny">
-          <a href="#story">Read the story</a>
+          <a href="#story">How it runs</a>
         </p>
       </div>
     </div>
