@@ -21,11 +21,18 @@ describe('fly FX from toy DNs', () => {
     assert.ok(hot.pitch <= 1.08);
   });
 
-  it('stutters a short loop on GF fire (pulse-song analog)', () => {
-    const d = flyFxFromCircuit({ gfFired: true, kick: 0.6, bpm: 120 });
+  it('stutters a short loop on a strong GF fire, not on every blend kick', () => {
+    const d = flyFxFromCircuit({ gfFired: true, kick: 0.7, bpm: 120 });
     assert.equal(d.loop, true);
-    assert.equal(d.loopBeats, 0.25);
+    assert.equal(d.loopBeats, 0.5);
     assert.ok(d.loopHold > 0);
+    const kickOnly = flyFxFromCircuit({
+      setState: 'TRANSITION',
+      transitionProgress: 0.5,
+      kick: 0.3,
+      gfFired: false,
+    });
+    assert.equal(kickOnly.loop, false);
   });
 
   it('smears echo during TRANSITION (sine-song analog)', () => {

@@ -51,7 +51,13 @@ function mountBoothReadout() {
   if (!root) return { applyFly() {} };
 
   let flyLoopUntil = 0;
+  let loopCooldownUntil = 0;
   let lastLoopBeats = 1;
+  let slew = { filter: 0, echo: 0, pitch: 1 };
+  let lastSentPitch = 1;
+  const SLEW = 0.045;
+  const PITCH_DEADBAND = 0.005;
+  const LOOP_COOLDOWN_SEC = 16;
 
   function setBar(el, t01, widthPct) {
     if (!el) return;
@@ -96,15 +102,25 @@ function mountBoothReadout() {
       paint(null, false, bpm, booth);
       return;
     }
-    if (drive.loop) {
-      flyLoopUntil = Math.max(flyLoopUntil, now + (drive.loopHold || 0));
+    slew.filter += (drive.filter - slew.filter) * SLEW;
+    slew.echo += (drive.echo - slew.echo) * SLEW;
+    slew.pitch += (drive.pitch - slew.pitch) * SLEW;
+
+    const wasLooping = now < flyLoopUntil;
+    if (drive.loop && !wasLooping && now >= loopCooldownUntil) {
+      flyLoopUntil = now + Math.max(0.2, drive.loopHold || 0);
       lastLoopBeats = drive.loopBeats || lastLoopBeats;
     }
     const wantLoop = now < flyLoopUntil;
+    if (wasLooping && !wantLoop) {
+      loopCooldownUntil = now + LOOP_COOLDOWN_SEC;
+    }
+
+    const smoothed = { ...drive, filter: slew.filter, echo: slew.echo, pitch: slew.pitch };
     if (booth) {
       booth.setBpm(bpm);
-      booth.applyFilter(drive.filter);
-      booth.applyEcho(drive.echo);
+      booth.applyFilter(smoothed.filter);
+      booth.applyEcho(smoothed.echo);
       if (wantLoop) {
         if (!booth.looping) {
           booth.setLoopBeats(lastLoopBeats);
@@ -114,9 +130,12 @@ function mountBoothReadout() {
         booth.setLooping(false);
       }
     }
-    setPitch?.(drive.pitch);
+    if (Math.abs(slew.pitch - lastSentPitch) >= PITCH_DEADBAND) {
+      setPitch?.(slew.pitch);
+      lastSentPitch = slew.pitch;
+    }
     if (flyReason) flyReason.textContent = `${drive.reason}${wantLoop ? ' · LOOP' : ''}`;
-    paint(drive, wantLoop, bpm, booth);
+    paint(smoothed, wantLoop, bpm, booth);
   }
 
   paint(null, false, 124, null);

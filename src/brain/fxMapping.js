@@ -38,33 +38,28 @@ export function flyFxFromCircuit(s) {
   const mean = 0.5 * (dnL + dnR);
   const diff = Math.tanh((dnR - dnL) / 9);
 
-  // Filter: DNa02-like L/R → HP vs LP. Bass-heavy mix leans LP.
-  let filter = diff * 0.88 + (bass - hi) * 0.32 + (fxI - 0.42) * 0.38;
+  // Filter: DNa02-like L/R → HP vs LP. Dead-zone so small DN flicker stays open.
+  const steer = Math.abs(diff) < 0.18 ? 0 : diff;
+  let filter = steer * 0.55 + (bass - hi) * 0.18 + (fxI - 0.42) * 0.2;
   filter = clamp(filter, -1, 1);
 
-  // Echo: sine-song analog — persistent wing tone during TRANSITION; GF residual.
+  // Echo: sine-song analog — smear during TRANSITION only (not every hi-hat).
   let echo = 0;
-  if (trans) echo = 0.2 + 0.55 * Math.sin(tp * Math.PI);
-  echo += clamp(gfRate / 26, 0, 0.32);
-  echo += hi * 0.14;
+  if (trans) echo = 0.15 + 0.4 * Math.sin(tp * Math.PI);
   echo = clamp(echo, 0, 1);
 
-  // Pitch: bilateral DN vigor → walking speed analog (±~4%).
-  const pitch = clamp(1 + Math.tanh((mean - 9) / 14) * 0.045, 0.92, 1.08);
+  // Pitch: bilateral DN vigor → walking speed analog (±~3%).
+  const pitch = clamp(1 + Math.tanh((mean - 9) / 18) * 0.03, 0.94, 1.06);
 
-  // Loop: pulse-song analog — a short repeating syllable, not a whole track.
+  // Loop: pulse-song analog — rare, one-shot. Not every kick in a blend.
   let loop = false;
   let loopBeats = 1;
   let loopHold = 0;
   const beat = 60 / bpm;
-  if (s.gfFired) {
+  if (s.gfFired && kick > 0.55) {
     loop = true;
-    loopBeats = kick > 0.45 ? 0.25 : 0.5;
-    loopHold = beat * loopBeats * 3.2;
-  } else if (trans && tp > 0.22 && tp < 0.82 && kick > 0.18) {
-    loop = true;
-    loopBeats = 1;
-    loopHold = beat * 2.2;
+    loopBeats = 0.5;
+    loopHold = beat * 2;
   }
 
   const fLabel = Math.abs(filter) < 0.05 ? 'open' : filter < 0 ? 'HP' : 'LP';
