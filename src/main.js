@@ -58,10 +58,9 @@ function syncMuteButtons(muted) {
 
 function wireMuteButtons() {
   const handler = (ev) => {
-    ev.preventDefault();
     ev.stopPropagation();
     if (liveClient) {
-      syncMuteButtons(liveClient.toggleMute());
+      Promise.resolve(liveClient.toggleMute()).then(syncMuteButtons);
       return;
     }
     let muted = false;

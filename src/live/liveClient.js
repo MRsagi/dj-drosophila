@@ -69,16 +69,22 @@ export function createLiveClient(opts = {}) {
 
   function applyMuteToEl(el) {
     if (!el) return;
-    // When the Web Audio tap owns output, keep the element unmuted so the
-    // analyser still sees the stream; mute via gain instead.
-    el.muted = tap ? false : muted;
-    if (tap) tap.gain.gain.value = muted ? 0 : 1;
+    // iOS often keeps playing the media element even after MediaElementSource
+    // is connected. Mute the element, volume, and the Web Audio gain.
+    el.muted = muted;
+    el.volume = muted ? 0 : 1;
+    if (tap) {
+      const t = tap.ac.currentTime;
+      tap.gain.gain.cancelScheduledValues(t);
+      tap.gain.gain.setValueAtTime(muted ? 0 : 1, t);
+    }
   }
 
   function ensureTap() {
     if (tap) return tap;
     const el = ensureAudio();
-    const ac = new AudioContext();
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ac = new AC();
     const src = ac.createMediaElementSource(el);
     const analyser = createAnalyser(ac, { fftSize: 2048, smoothing: 0.5 });
     const booth = createBoothFx(ac);
@@ -90,7 +96,7 @@ export function createLiveClient(opts = {}) {
     gain.connect(ac.destination);
     gain.gain.value = muted ? 0 : 1;
     tap = { ac, analyser, gain, booth };
-    el.muted = false;
+    applyMuteToEl(el);
     applyPitch();
     return tap;
   }
@@ -111,6 +117,8 @@ export function createLiveClient(opts = {}) {
     audio.id = 'live-shared-audio';
     audio.crossOrigin = 'anonymous';
     audio.playsInline = true;
+    audio.setAttribute('playsinline', '');
+    audio.setAttribute('webkit-playsinline', '');
     audio.preload = 'auto';
     audio.style.display = 'none';
     audio.preservesPitch = false;
@@ -261,14 +269,27 @@ export function createLiveClient(opts = {}) {
      * Client-only mute of the shared <audio> element. Does not affect other listeners.
      * @param {boolean} [next]
      */
-    setMuted(next = !muted) {
+    async setMuted(next = !muted) {
       muted = !!next;
       try {
         localStorage.setItem(LIVE_MUTE_KEY, muted ? '1' : '0');
       } catch {
         /* ignore */
       }
-      applyMuteToEl(ensureAudio());
+      const el = ensureAudio();
+      applyMuteToEl(el);
+      if (!muted) {
+        try {
+          if (tap?.ac.state === 'suspended') await tap.ac.resume();
+        } catch {
+          /* ignore */
+        }
+        try {
+          await el.play();
+        } catch {
+          /* ignore */
+        }
+      }
       onMuteChange(muted);
       return muted;
     },

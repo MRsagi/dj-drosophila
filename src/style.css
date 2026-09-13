@@ -568,6 +568,14 @@ input[type="range"] { width: 100%; accent-color: var(--gold); }
   #fly-dj { height: min(42vh, 380px); }
   .story-gags { grid-template-columns: 1fr; }
   .topbar { flex-wrap: wrap; }
+  .club-audio-controls {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    margin: 0.5rem -0.2rem 0;
+    padding: 0.55rem 0.35rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, transparent, #10141c 28%);
+  }
 }
 @media (max-width: 600px) {
   .top-meta .pill.dim { display: none; }
@@ -587,8 +595,11 @@ input[type="range"] { width: 100%; accent-color: var(--gold); }
 .mute-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
-  padding: 0.35rem 0.7rem;
+  padding: 0.55rem 0.9rem;
+  min-height: 44px;
+  min-width: 44px;
   border-radius: 999px;
   border: 1px solid #2a3344;
   background: #121820;
@@ -597,6 +608,8 @@ input[type="range"] { width: 100%; accent-color: var(--gold); }
   font-size: 12px;
   cursor: pointer;
   letter-spacing: 0.04em;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .mute-btn:hover { border-color: var(--gold, #e0b44a); }
 .mute-btn[aria-pressed="true"] {
