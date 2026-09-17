@@ -32,6 +32,12 @@ MaleCNS connectome data from FlyEM / HHMI Janelia, Cambridge Connectomics Group 
 MRC LMB, and Google Research — **CC BY** — dataset `male-cns:v1.0` at
 [neuprint.janelia.org](https://neuprint.janelia.org).
 
+## MaleCNS motif slice
+
+`src/brain/maleCnsMotif.json` is a small derived list of `bodyId`s and synapse
+counts from **male-cns:v1.0** (FlyEM / Janelia, Cambridge, Google Research, CC BY).
+It is not the full connectome. Refresh: `python3 scripts/fetch-male-cns-motif.py`.
+
 ## App code
 
 Demo code in this repo. Keep the credit line if you show screenshots.

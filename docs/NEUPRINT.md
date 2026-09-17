@@ -1,6 +1,9 @@
 # neuPrint notes (MaleCNS)
 
-This MVP does **not** call neuPrint. These snippets are a starting point for a future “real neuPrint” hook (`TODO`).
+This MVP **does** ship a frozen MaleCNS motif slice (`src/brain/maleCnsMotif.json`).
+Runtime (Docker / the club server) does **not** call neuPrint. Live queries stay
+fetch-script only: `python3 scripts/fetch-male-cns-motif.py` with `NEUPRINT_TOKEN`.
+The snippets below are for refreshing that freeze, not for a browser or container client.
 
 **Verify every type name in the explorer** before you treat it as a MaleCNS fact. Names that are solid in hemibrain / MANC / BANC are not automatically identical here.
 

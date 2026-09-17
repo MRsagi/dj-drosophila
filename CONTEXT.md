@@ -34,8 +34,12 @@ _Avoid_: policy, unsupervised, lab decide
 Cue-in, cue-out, and overlap taken from a show-log row so the encoder can crossfade without a hard cut.
 _Avoid_: ffmpeg filtergraph, acrossfade
 
+**Motif**:
+Frozen MaleCNS cells + edges stepped on the server from the show clock.
+_Avoid_: whole brain, neuPrint client in Docker
+
 **Club frame**:
-One tick of eyes, descending-neuron toys, fly body, and booth readout driven by the shared radio.
+One tick of motif rates + eyes + fly + booth driven by the shared radio.
 _Avoid_: main loop, rAF god object
 
 **Booth FX**:
