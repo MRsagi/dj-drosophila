@@ -209,6 +209,7 @@ export function createHud() {
       clubMode,
       sharedLive,
       motifLine,
+      pitLine = '',
     }) {
       setText(els.fps, `${Math.round(fps)} FPS`);
 
@@ -322,7 +323,9 @@ export function createHud() {
 
       setText(els.reason, policyReason || '—');
       if (els.clubReason) {
-        setText(els.clubReason, motifLine || `DN-L ${fmt(dnL?.rate ?? 0)} Hz · DN-R ${fmt(dnR?.rate ?? 0)} Hz · GF ${fmt(gf?.rate ?? 0)} Hz`);
+        const loc = motifLine
+          || `DN-L ${fmt(dnL?.rate ?? 0)} Hz · DN-R ${fmt(dnR?.rate ?? 0)} Hz · GF ${fmt(gf?.rate ?? 0)} Hz`;
+        setText(els.clubReason, pitLine ? `${loc} · ${pitLine}` : loc);
       }
       if (els.bpmRead && bpm != null) els.bpmRead.textContent = `${fmt(bpm, 0)} BPM`;
       if (els.gateRead) {

@@ -5,6 +5,7 @@
 
 import { formatFilterRead } from '../audio/boothFx.js';
 import { flyFxFromCircuit } from '../brain/fxMapping.js';
+import { pitHudLine } from '../scene/pitPose.js';
 import { updateEye } from '../vision/eyeMap.js';
 
 function motifRates(motif) {
@@ -211,6 +212,7 @@ export function createClubFrame(opts) {
 
     viz.frame({ left, right, featA, featB, xfader: xf, running: true });
     const fly = getFly?.();
+    let pitLine = '';
     if (fly) {
       fly.update({
         xfader: xf,
@@ -230,6 +232,22 @@ export function createClubFrame(opts) {
         gfRate: rates.gfRate,
         gfFired: rates.gfFired,
         bpm: bpmNow,
+      });
+      if (fly.updatePit) {
+        fly.updatePit({
+          dnLRate: rates.dnLRate,
+          dnRRate: rates.dnRRate,
+          gfFired: rates.gfFired,
+          bass: featM.bass,
+          kick: featM.kick,
+          now,
+          dt: frameDt,
+        });
+      }
+      const nPit = fly.pitSize ? fly.pitSize() : 0;
+      pitLine = pitHudLine({
+        n: nPit,
+        motifStatus: snap?.motif?.status || liveClient.state?.motif?.status,
       });
       fly.render();
     }
@@ -288,6 +306,7 @@ export function createClubFrame(opts) {
       clubMode: true,
       sharedLive: true,
       motifLine: rates.loc,
+      pitLine,
     });
     void running;
   }
