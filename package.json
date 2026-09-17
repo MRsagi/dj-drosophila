@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "live": "node server/index.js",
     "live:build": "vite build && node server/index.js",
-    "test": "node --test server/liquidsoapPlaylist.test.js server/showClock.test.js server/djMind.test.js server/motif.test.js src/brain/fxMapping.test.js"
+    "test": "node --test server/liquidsoapPlaylist.test.js server/showClock.test.js server/djMind.test.js server/motif.test.js src/brain/fxMapping.test.js src/scene/pitPose.test.js"
   },
   "devDependencies": {
     "vite": "^6.3.5"
