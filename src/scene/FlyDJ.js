@@ -8,6 +8,7 @@
  */
 
 import * as THREE from 'three';
+import { pitCount, pitSlot, pitPhase, pitPose } from './pitPose.js';
 
 function makeBodyMaterial(color, emissive = 0x000000) {
   return new THREE.MeshStandardMaterial({
@@ -19,14 +20,39 @@ function makeBodyMaterial(color, emissive = 0x000000) {
   });
 }
 
-function buildFly() {
+function buildFly({ headphones = true, materials } = {}) {
+  const mats = materials || {
+    thorax: makeBodyMaterial(0x3a2a18, 0x221408),
+    ab: makeBodyMaterial(0xc9a227, 0x5a4010),
+    abDark: makeBodyMaterial(0x1a1208, 0x0a0804),
+    head: makeBodyMaterial(0x2a1c10, 0x150e08),
+    eye: new THREE.MeshStandardMaterial({
+      color: 0xff2244,
+      emissive: 0xaa1028,
+      emissiveIntensity: 0.7,
+      roughness: 0.35,
+    }),
+    leg: makeBodyMaterial(0x1a140c),
+    wing: new THREE.MeshStandardMaterial({
+      color: 0xaaddee,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.DoubleSide,
+      roughness: 0.2,
+      metalness: 0.1,
+      emissive: 0x224455,
+      emissiveIntensity: 0.2,
+    }),
+    ant: makeBodyMaterial(0x111111),
+  };
+
   const root = new THREE.Group();
   root.name = 'fly';
 
   // Thorax
   const thorax = new THREE.Mesh(
     new THREE.SphereGeometry(0.42, 10, 8),
-    makeBodyMaterial(0x3a2a18, 0x221408),
+    mats.thorax,
   );
   thorax.scale.set(1.1, 0.85, 1.2);
   root.add(thorax);
@@ -34,8 +60,8 @@ function buildFly() {
   // Abdomen (striped joke)
   const abdomen = new THREE.Group();
   abdomen.position.set(0, -0.05, -0.55);
-  const abMat = makeBodyMaterial(0xc9a227, 0x5a4010);
-  const abDark = makeBodyMaterial(0x1a1208, 0x0a0804);
+  const abMat = mats.ab;
+  const abDark = mats.abDark;
   for (let i = 0; i < 4; i++) {
     const seg = new THREE.Mesh(
       new THREE.SphereGeometry(0.28 - i * 0.03, 8, 6),
@@ -50,19 +76,14 @@ function buildFly() {
   // Head
   const head = new THREE.Mesh(
     new THREE.SphereGeometry(0.32, 10, 8),
-    makeBodyMaterial(0x2a1c10, 0x150e08),
+    mats.head,
   );
   head.position.set(0, 0.08, 0.48);
   root.add(head);
 
   // Compound eyes (big & red — readable gag)
   const eyeGeo = new THREE.SphereGeometry(0.2, 10, 8);
-  const eyeMat = new THREE.MeshStandardMaterial({
-    color: 0xff2244,
-    emissive: 0xaa1028,
-    emissiveIntensity: 0.7,
-    roughness: 0.35,
-  });
+  const eyeMat = mats.eye;
   const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
   eyeL.position.set(-0.22, 0.12, 0.58);
   eyeL.scale.set(1.1, 1.3, 0.9);
@@ -72,7 +93,7 @@ function buildFly() {
   head.add(eyeR);
 
   // Antennae (parented to head — twitch with hi energy)
-  const antMat = makeBodyMaterial(0x111111);
+  const antMat = mats.ant;
   const antennae = [];
   for (const sx of [-1, 1]) {
     const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.35, 5), antMat);
@@ -87,16 +108,7 @@ function buildFly() {
 
   // Wings — DNa02 also hits wing/haltere premotor (w-cHIN) in MANC; we flap a readable beat
   const wingGeo = new THREE.PlaneGeometry(0.7, 0.35);
-  const wingMat = new THREE.MeshStandardMaterial({
-    color: 0xaaddee,
-    transparent: true,
-    opacity: 0.45,
-    side: THREE.DoubleSide,
-    roughness: 0.2,
-    metalness: 0.1,
-    emissive: 0x224455,
-    emissiveIntensity: 0.2,
-  });
+  const wingMat = mats.wing;
   const wingL = new THREE.Mesh(wingGeo, wingMat);
   wingL.position.set(-0.45, 0.25, 0);
   wingL.rotation.y = 0.4;
@@ -109,7 +121,7 @@ function buildFly() {
   root.add(wingR);
 
   // Articulated legs: coxa → femur → tibia. Tripod CPG poses these each frame.
-  const legMat = makeBodyMaterial(0x1a140c);
+  const legMat = mats.leg;
   const legsGroup = new THREE.Group();
   const legs = [];
   function makeLeg(sx, slot) {
@@ -142,23 +154,25 @@ function buildFly() {
   }
   root.add(legsGroup);
 
-  // Tiny headphones (comedy)
-  const hpBand = new THREE.Mesh(
-    new THREE.TorusGeometry(0.28, 0.03, 6, 16, Math.PI),
-    makeBodyMaterial(0x222222, 0x111111),
-  );
-  hpBand.rotation.x = Math.PI;
-  hpBand.position.set(0, 0.28, 0.48);
-  const cupL = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), makeBodyMaterial(0x333333, 0x1a1a1a));
-  cupL.position.set(-0.3, 0.12, 0.48);
-  cupL.scale.set(0.7, 1, 0.8);
-  const cupR = cupL.clone();
-  cupR.position.x = 0.3;
-  root.add(hpBand);
-  root.add(cupL);
-  root.add(cupR);
+  if (headphones) {
+    // Tiny headphones (comedy)
+    const hpBand = new THREE.Mesh(
+      new THREE.TorusGeometry(0.28, 0.03, 6, 16, Math.PI),
+      makeBodyMaterial(0x222222, 0x111111),
+    );
+    hpBand.rotation.x = Math.PI;
+    hpBand.position.set(0, 0.28, 0.48);
+    const cupL = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), makeBodyMaterial(0x333333, 0x1a1a1a));
+    cupL.position.set(-0.3, 0.12, 0.48);
+    cupL.scale.set(0.7, 1, 0.8);
+    const cupR = cupL.clone();
+    cupR.position.x = 0.3;
+    root.add(hpBand);
+    root.add(cupL);
+    root.add(cupR);
+  }
 
-  return { root, wingL, wingR, eyeL, eyeR, eyeMat, legs, legsGroup, antennae, abdomen, thorax, head };
+  return { root, wingL, wingR, eyeL, eyeR, eyeMat, legs, legsGroup, antennae, abdomen, thorax, head, materials: mats };
 }
 
 function buildDecks() {
@@ -280,8 +294,8 @@ export function createFlyDJ(canvas) {
   scene.fog = new THREE.FogExp2(0x05060a, 0.045);
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 40);
-  camera.position.set(0, 1.35, 4.2);
-  camera.lookAt(0, 0.15, 0);
+  camera.position.set(0, 1.85, 5.4);
+  camera.lookAt(0, 0.2, 0.4);
 
   const hemi = new THREE.HemisphereLight(0x446688, 0x110808, 0.7);
   scene.add(hemi);
@@ -303,6 +317,30 @@ export function createFlyDJ(canvas) {
   fly.root.position.set(0, 0.15, 0.35);
   fly.root.scale.setScalar(0.85);
   scene.add(fly.root);
+
+  const pit = [];
+  try {
+    const n = pitCount({
+      innerWidth: typeof window !== 'undefined' ? window.innerWidth : 1200,
+      coarse: typeof window !== 'undefined' && window.matchMedia
+        ? window.matchMedia('(pointer: coarse)').matches
+        : false,
+    });
+    for (let i = 0; i < n; i++) {
+      const body = buildFly({ headphones: false, materials: fly.materials });
+      const slot = pitSlot(i, n);
+      body.root.position.set(slot.x, 0.02, slot.z);
+      body.root.scale.setScalar(0.45 * 0.85);
+      body.root.rotation.y = Math.PI; // face the booth
+      body._phi = pitPhase(i);
+      body._gait = 0;
+      scene.add(body.root);
+      pit.push(body);
+    }
+  } catch {
+    for (const body of pit) scene.remove(body.root);
+    pit.length = 0;
+  }
 
   // Spot on the fly
   const spot = new THREE.SpotLight(0xffe0a0, 60, 10, 0.45, 0.4, 1);
@@ -453,6 +491,43 @@ export function createFlyDJ(canvas) {
     room.orb.rotation.x += 0.006;
   }
 
+  function updatePit(state) {
+    if (!pit.length) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    const dt = Math.min(0.05, Math.max(0.008, state.dt || 1 / 60));
+    const now = state.now ?? 0;
+    const gfHop = !!state.gfFired;
+    for (const body of pit) {
+      const pose = pitPose({
+        phi: body._phi,
+        bass: state.bass || 0,
+        kick: state.kick || 0,
+        dnL: state.dnLRate || 0,
+        dnR: state.dnRRate || 0,
+        gfHop,
+      });
+      body._gait += (2.4 + pose.strideScale * 3.2) * Math.PI * 2 * dt;
+      const phase = body._gait + body._phi;
+      body.root.rotation.z = -pose.lean * 0.35;
+      body.root.rotation.y = Math.PI + pose.lean * 0.4;
+      const y0 = 0.02 + pose.hop;
+      body.root.position.y = y0 + Math.sin(now * 6 + body._phi) * 0.02 * pose.strideScale;
+      const flap = Math.sin(phase * 1.7) * pose.wingAmp;
+      body.wingL.rotation.z = 0.3 + flap;
+      body.wingR.rotation.z = -0.3 - flap;
+      for (const leg of body.legs) {
+        const p = phase + (leg.tripodA ? 0 : Math.PI);
+        const swing = Math.sin(p);
+        const lift = Math.max(0, swing) * (0.4 + pose.strideScale * 0.3);
+        const stride = Math.cos(p) * 0.35 * pose.strideScale;
+        leg.coxa.rotation.x = 0.12 + stride * 0.85 + leg.slot * 0.08;
+        leg.coxa.rotation.z = leg.sx * (0.42 + lift * 0.2);
+        leg.femur.rotation.x = 0.35 - lift * 0.95;
+        leg.knee.rotation.x = 0.55 + lift * 0.45 - stride * 0.15;
+      }
+    }
+  }
+
   function render() {
     if (disposed) return;
     renderer.render(scene, camera);
@@ -465,5 +540,5 @@ export function createFlyDJ(canvas) {
 
   resize();
 
-  return { update, render, resize, dispose, scene, camera, renderer };
+  return { update, updatePit, pitSize: () => pit.length, render, resize, dispose, scene, camera, renderer };
 }
