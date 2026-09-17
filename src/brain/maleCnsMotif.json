@@ -1,0 +1,43 @@
+{
+  "dataset": "male-cns:v1.0",
+  "fetchedAt": "2026-09-17T08:26:43Z",
+  "misses": [],
+  "cells": [
+    {
+      "bodyId": 10360,
+      "type": "DNa02",
+      "instance": "DNa02_R",
+      "role": "dnR"
+    },
+    {
+      "bodyId": 523769,
+      "type": "DNa02",
+      "instance": "DNa02_L",
+      "role": "dnL"
+    },
+    {
+      "bodyId": 10001,
+      "type": "DNp01",
+      "instance": "DNp01(GF)_R",
+      "role": "gf"
+    },
+    {
+      "bodyId": 10010,
+      "type": "DNp01",
+      "instance": "DNp01(GF)_L",
+      "role": "other"
+    }
+  ],
+  "edges": [
+    {
+      "pre": 10001,
+      "post": 10010,
+      "w": 1
+    },
+    {
+      "pre": 10010,
+      "post": 10001,
+      "w": 1
+    }
+  ]
+}
