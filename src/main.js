@@ -1,11 +1,10 @@
 /**
  * DJ Drosophila — club wiring.
- * Shared HLS → club frame (eyes · LIF · fly · booth readout).
+ * Shared HLS → club frame (eyes · motif rates · fly · booth readout).
  */
 
 import { createEye, TARGET_COLUMNS } from './vision/eyeMap.js';
 import { createVisualizer } from './vision/visualizer.js';
-import { createCircuit } from './brain/circuit.js';
 import { createHud } from './ui/hud.js';
 import { mountCaptions } from './ui/captions.js';
 import { mountRouter } from './ui/router.js';
@@ -15,7 +14,6 @@ import { attributionLines } from './crate/attribution.js';
 
 const left = createEye('L', TARGET_COLUMNS);
 const right = createEye('R', TARGET_COLUMNS);
-const circuit = createCircuit();
 const hud = createHud();
 mountCaptions(document.getElementById('caption-bar'));
 
@@ -133,7 +131,6 @@ function attachLiveClient() {
     syncMuteButtons(!!liveClient.muted);
   }
   clubFrame = createClubFrame({
-    circuit,
     viz,
     left,
     right,

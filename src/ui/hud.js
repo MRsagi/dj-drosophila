@@ -208,6 +208,7 @@ export function createHud() {
       fxIntensity,
       clubMode,
       sharedLive,
+      motifLine,
     }) {
       setText(els.fps, `${Math.round(fps)} FPS`);
 
@@ -321,9 +322,7 @@ export function createHud() {
 
       setText(els.reason, policyReason || '—');
       if (els.clubReason) {
-        // Club lede already shows the mind reason — this line is the motor readout.
-        const loc = `DN-L ${fmt(dnL?.rate ?? 0)} Hz · DN-R ${fmt(dnR?.rate ?? 0)} Hz · GF ${fmt(gf?.rate ?? 0)} Hz`;
-        setText(els.clubReason, loc);
+        setText(els.clubReason, motifLine || `DN-L ${fmt(dnL?.rate ?? 0)} Hz · DN-R ${fmt(dnR?.rate ?? 0)} Hz · GF ${fmt(gf?.rate ?? 0)} Hz`);
       }
       if (els.bpmRead && bpm != null) els.bpmRead.textContent = `${fmt(bpm, 0)} BPM`;
       if (els.gateRead) {

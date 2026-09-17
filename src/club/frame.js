@@ -1,12 +1,36 @@
 /**
- * Club frame — one tick: eyes, LIF toys, fly body, booth FX readout.
+ * Club frame — one tick: eyes, SSE motif rates, fly body, booth FX readout.
  * Audio is the shared HLS tap. The encoder stays dry.
  */
 
 import { formatFilterRead } from '../audio/boothFx.js';
 import { flyFxFromCircuit } from '../brain/fxMapping.js';
 import { updateEye } from '../vision/eyeMap.js';
-import { sensorCurrents } from '../brain/mapping.js';
+
+function motifRates(motif) {
+  const cells = motif?.cells || [];
+  const pick = (role) => cells.find((c) => c.role === role);
+  const dnL = pick('dnL');
+  const dnR = pick('dnR');
+  const gf = pick('gf');
+  const prev = motifRates._gf || 0;
+  const gfRate = Number(gf?.rate) || 0;
+  const gfFired = gfRate > 18 && prev <= 18;
+  motifRates._gf = gfRate;
+  return {
+    dnLRate: Number(dnL?.rate) || 0,
+    dnRRate: Number(dnR?.rate) || 0,
+    gfRate,
+    gfFired,
+    loc: motifHudLine(motif, { dnL, dnR, gf }),
+  };
+}
+
+function motifHudLine(motif, { dnL, dnR, gf }) {
+  if (!motif || motif.status === 'none' || !(motif.cells || []).length) return 'motif: none';
+  const bit = (c, miss) => (c ? `${c.type} ${c.bodyId} · ${Number(c.rate).toFixed(0)} Hz` : `miss ${miss}`);
+  return `${bit(dnL, 'dnL')} · ${bit(dnR, 'dnR')} · ${bit(gf, 'gf')}`;
+}
 
 function emptyFeat() {
   return {
@@ -144,7 +168,6 @@ function mountBoothReadout() {
 
 /**
  * @param {{
- *   circuit: ReturnType<import('../brain/circuit.js').createCircuit>,
  *   viz: ReturnType<import('../vision/visualizer.js').createVisualizer>,
  *   left: object,
  *   right: object,
@@ -154,10 +177,8 @@ function mountBoothReadout() {
  * }} opts
  */
 export function createClubFrame(opts) {
-  const { circuit, viz, left, right, hud, getFly, liveClient } = opts;
+  const { viz, left, right, hud, getFly, liveClient } = opts;
   const boothHud = mountBoothReadout();
-  let lastEnergy = 0;
-  let simCarry = 0;
   let lastTs = 0;
   let frames = 0;
   let fpsT = 0;
@@ -175,6 +196,7 @@ export function createClubFrame(opts) {
     lastTs = ts;
 
     const snap = liveClient.setSnapshot();
+    const rates = motifRates(snap?.motif || liveClient.state?.motif);
     const xf = snap?.xfader ?? snap?.xfaderEdge ?? 0;
     const featM = liveClient.readFeat() || emptyFeat();
     const bpmNow = liveClient.state?.trackA?.bpm || liveClient.state?.trackB?.bpm || 124;
@@ -186,24 +208,6 @@ export function createClubFrame(opts) {
     const featB = scaleFeat(featM, wB);
     updateEye(left, featA);
     updateEye(right, featB);
-
-    const currents = sensorCurrents({ left, right, featA, featB, featM }, now, lastEnergy);
-    lastEnergy = currents.energy;
-    const dt = 0.001;
-    let lifSnap = {
-      dnL: circuit.dnL,
-      dnR: circuit.dnR,
-      gf: circuit.gf,
-      meanRate: 0.5 * (circuit.dnL.rate + circuit.dnR.rate),
-      gfFired: false,
-    };
-    let gfFiredThisFrame = false;
-    simCarry += frameDt;
-    while (simCarry >= dt) {
-      lifSnap = circuit.step(dt, currents);
-      simCarry -= dt;
-      if (lifSnap.gfFired) gfFiredThisFrame = true;
-    }
 
     viz.frame({ left, right, featA, featB, xfader: xf, running: true });
     const fly = getFly?.();
@@ -221,10 +225,10 @@ export function createClubFrame(opts) {
         running: true,
         setState: snap?.state,
         activeEdge: snap?.activeEdge,
-        dnLRate: circuit.dnL.rate,
-        dnRRate: circuit.dnR.rate,
-        gfRate: circuit.gf.rate,
-        gfFired: gfFiredThisFrame,
+        dnLRate: rates.dnLRate,
+        dnRRate: rates.dnRRate,
+        gfRate: rates.gfRate,
+        gfFired: rates.gfFired,
         bpm: bpmNow,
       });
       fly.render();
@@ -232,10 +236,10 @@ export function createClubFrame(opts) {
 
     boothHud.applyFly(
       flyFxFromCircuit({
-        dnLRate: circuit.dnL.rate,
-        dnRRate: circuit.dnR.rate,
-        gfRate: circuit.gf.rate,
-        gfFired: gfFiredThisFrame,
+        dnLRate: rates.dnLRate,
+        dnRRate: rates.dnRRate,
+        gfRate: rates.gfRate,
+        gfFired: rates.gfFired,
         bass: featM.bass,
         hi: featM.hi,
         kick: featM.kick,
@@ -257,10 +261,10 @@ export function createClubFrame(opts) {
       xfader: xf,
       volume: 0.72,
       usedFallback: false,
-      dnL: circuit.dnL,
-      dnR: circuit.dnR,
-      gf: circuit.gf,
-      meanRate: lifSnap.meanRate,
+      dnL: { rate: rates.dnLRate },
+      dnR: { rate: rates.dnRRate },
+      gf: { rate: rates.gfRate },
+      meanRate: 0.5 * (rates.dnLRate + rates.dnRRate),
       skipEvent: null,
       now,
       lastSkipAt: -10,
@@ -283,8 +287,8 @@ export function createClubFrame(opts) {
       transitionProgress: snap?.transitionProgress,
       clubMode: true,
       sharedLive: true,
+      motifLine: rates.loc,
     });
-    hud.traces(circuit.history);
     void running;
   }
 

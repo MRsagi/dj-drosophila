@@ -324,6 +324,7 @@ export function createLiveClient(opts = {}) {
         timeStr: s.timeStr,
         edgeLabel: s.edgeLabel,
         mindReason: s.mindReason || null,
+        motif: s.motif || { status: 'none', cells: [] },
       };
     },
     /**
