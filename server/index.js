@@ -174,6 +174,7 @@ async function main() {
   const sseClients = new Set();
 
   const sseTimer = setInterval(() => {
+    schedule.stepMotif();
     const state = schedule.snapshot();
     const payload = `data: ${JSON.stringify(state)}\n\n`;
     for (const res of sseClients) {

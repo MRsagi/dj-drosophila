@@ -52,4 +52,38 @@ describe('motif step', () => {
     const out = m.step({ state: 'PLAYING', xfaderEdge: -1, playedSec: 10, plannedSec: 40, transitionProgress: null });
     assert.equal(out.status, 'partial');
   });
+
+  it('snapshot does not change rates; two steps do', () => {
+    const m = createMotif(fixture);
+    const show = { state: 'PLAYING', xfaderEdge: -1, playedSec: 20, plannedSec: 40, transitionProgress: null };
+    const a = m.snapshot();
+    const b = m.snapshot();
+    assert.deepEqual(
+      a.cells.map((c) => c.rate),
+      b.cells.map((c) => c.rate),
+    );
+    const rates0 = a.cells.map((c) => c.rate);
+    const s1 = m.step(show);
+    const s2 = m.step(show);
+    const rates1 = s1.cells.map((c) => c.rate);
+    const rates2 = s2.cells.map((c) => c.rate);
+    assert.ok(
+      rates1.some((r, i) => r !== rates0[i]),
+      `first step should move rates: ${rates0} → ${rates1}`,
+    );
+    assert.ok(
+      rates2.some((r, i) => r !== rates1[i]),
+      `second step should move rates: ${rates1} → ${rates2}`,
+    );
+    const after = m.snapshot();
+    assert.deepEqual(
+      after.cells.map((c) => c.rate),
+      rates2,
+    );
+    const after2 = m.snapshot();
+    assert.deepEqual(
+      after2.cells.map((c) => c.rate),
+      rates2,
+    );
+  });
 });

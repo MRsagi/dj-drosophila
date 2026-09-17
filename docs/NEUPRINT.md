@@ -141,8 +141,10 @@ ORDER BY c.weight DESC
 LIMIT 25
 ```
 
-## How this repo would use a real fetch
+## How this repo uses the freeze
+
+The club already loads `src/brain/maleCnsMotif.json`: identified `bodyId`s from `male-cns:v1.0` (DNa02 left/right, DNp01/GF). Node steps a leaky-rate graph on that slice from the show clock. That is not a LIF stub and not a live neuPrint client. Refresh is `scripts/fetch-male-cns-motif.py` only.
 
 1. Confirm type strings above in the explorer.
 2. Store `bodyId`s, not nicknames.
-3. Do **not** rename our LIF toys to `DNa02` just because a query returned rows. The stub is still a stub. The honest UI line is: *proxy, unless wired to these bodyIds.*
+3. Do not invent synapses the freeze did not return. This slice has **no DNa02 intra-motif edges**; the only weights are GF_R↔GF_L (`10001`↔`10010`, w=1). Show-clock currents drive DNa02, not those edges.

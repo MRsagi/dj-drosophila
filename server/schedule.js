@@ -468,16 +468,23 @@ export function createSchedule(opts = {}) {
 
   const motif = createMotif(loadMotifGraph());
 
+  /** Read-only public show clock. Does not step the leaky motif. */
   function snapshot(nowMs) {
     const st = getState(nowMs);
-    st.motif = motif.step({
+    st.motif = motif.snapshot();
+    return publicSnapshot(st);
+  }
+
+  /** One leaky-rate step from current show state. SSE 500 ms tick only. */
+  function stepMotif(nowMs) {
+    const st = getState(nowMs);
+    motif.step({
       state: st.state,
       xfaderEdge: st.xfaderEdge,
       playedSec: st.playedSec,
       plannedSec: st.plannedSec,
       transitionProgress: st.transitionProgress,
     });
-    return publicSnapshot(st);
   }
 
   function upcomingSegments(fromMs, horizonSec = 3600) {
@@ -549,6 +556,7 @@ export function createSchedule(opts = {}) {
     cycleSec,
     getState,
     snapshot,
+    stepMotif,
     encoderView(nowMs) {
       return encoderView(getState(nowMs));
     },
