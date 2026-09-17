@@ -24,6 +24,7 @@ const PUBLIC_KEYS = [
   'timeStr',
   'edgeLabel',
   'streamUrl',
+  'motif',
 ];
 
 /**

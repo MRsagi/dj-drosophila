@@ -19,12 +19,22 @@ import {
   minPlayForTrack,
 } from './djMind.js';
 import { publicSnapshot, encoderView } from './showClock.js';
+import { createMotif } from './motif.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const MANIFEST_PATH = path.join(ROOT, 'src/crate/manifest.json');
 const CRATE_DIR = path.join(ROOT, 'public/crate');
 const SHOW_LOG_PATH = path.join(__dirname, 'cache', 'show-log.json');
+const MOTIF_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src/brain/maleCnsMotif.json');
+
+function loadMotifGraph() {
+  try {
+    return JSON.parse(fs.readFileSync(MOTIF_PATH, 'utf8'));
+  } catch {
+    return null;
+  }
+}
 
 /** Fallback only — real fades come from the mind (8–32s). */
 export const TRANSITION_SEC = 20;
@@ -456,6 +466,20 @@ export function createSchedule(opts = {}) {
     };
   }
 
+  const motif = createMotif(loadMotifGraph());
+
+  function snapshot(nowMs) {
+    const st = getState(nowMs);
+    st.motif = motif.step({
+      state: st.state,
+      xfaderEdge: st.xfaderEdge,
+      playedSec: st.playedSec,
+      plannedSec: st.plannedSec,
+      transitionProgress: st.transitionProgress,
+    });
+    return publicSnapshot(st);
+  }
+
   function upcomingSegments(fromMs, horizonSec = 3600) {
     const out = [];
     let t = fromMs;
@@ -524,9 +548,7 @@ export function createSchedule(opts = {}) {
     cycle: showLog,
     cycleSec,
     getState,
-    snapshot(nowMs) {
-      return publicSnapshot(getState(nowMs));
-    },
+    snapshot,
     encoderView(nowMs) {
       return encoderView(getState(nowMs));
     },

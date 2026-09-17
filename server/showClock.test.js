@@ -45,4 +45,13 @@ describe('show clock', () => {
     assert.equal(enc.state, 'PLAYING');
     assert.equal(enc._trackPath, undefined);
   });
+
+  it('passes motif through when present', () => {
+    const pub = publicSnapshot({
+      state: 'PLAYING',
+      motif: { dataset: 'male-cns:v1.0', status: 'ok', cells: [{ bodyId: 1, role: 'dnL', rate: 9 }] },
+    });
+    assert.equal(pub.motif.status, 'ok');
+    assert.equal(pub.motif.cells[0].role, 'dnL');
+  });
 });
